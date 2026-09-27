@@ -8,6 +8,20 @@
  * yönlendiriyoruz. /tmp her çalıştırmada boşalabilir, bu yüzden kalıcı olması
  * gereken hiçbir veri buraya yazılmamalıdır (veritabanı harici olmalıdır).
  */
+/*
+ * Vercel, projeyi içe aktarırken .env.example'daki anahtarları değersiz
+ * ortam değişkenleri olarak ekledi. Laravel boş bir değişkeni "ayarlanmamış"
+ * değil "boş metin" olarak okur; örneğin bakım modu sürücüsü boş kalınca
+ * her istek 500 verir. Boş değişkenleri kaldırarak config dosyalarındaki
+ * varsayılan değerlerin devreye girmesini sağlıyoruz.
+ */
+foreach (array_keys(getenv()) as $key) {
+    if (getenv($key) === '') {
+        putenv($key);
+        unset($_ENV[$key], $_SERVER[$key]);
+    }
+}
+
 $storagePath = '/tmp/storage';
 
 $directories = [
