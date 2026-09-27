@@ -9,3 +9,10 @@
 phpunit.xml
 .editorconfig
 .gitattributes
+# Vite kurulumu kullanılmıyor (arayüz CDN'den yükleniyor); Vercel bu dosyaları
+# görürse "npm run build" çalıştırmaya çalışıp başarısız oluyor.
+package.json
+package-lock.json
+vite.config.js
+/resources/css
+/resources/js
