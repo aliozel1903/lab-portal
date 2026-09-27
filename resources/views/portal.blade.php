@@ -598,7 +598,7 @@ $(function () {
                                 '<td>' + esc(item.test_name) + '</td>' +
                                 '<td>' + esc(formatDate(item.created_at)) + '</td>' +
                                 '<td>' +
-                                    '<a href="/yazdir/' + encodeURIComponent(item.id) + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark">Yazdır</a> ' +
+                                    '<a href="/yazdir/' + encodeURIComponent(item.id) + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Yazdır</a> ' +
                                     '<button class="btn btn-sm btn-outline-primary edit-btn" data-id="' + esc(item.id) + '">Düzenle</button> ' +
                                     deleteBtn +
                                 '</td>' +
