@@ -29,6 +29,29 @@ $_ENV['LARAVEL_STORAGE_PATH'] = $storagePath;
 $_SERVER['LARAVEL_STORAGE_PATH'] = $storagePath;
 
 /*
+ * Laravel ilk istekte bootstrap/cache altına paket ve servis listelerini
+ * yazar. Vercel'de o klasör salt-okunur olduğu için uygulama hata sayfası
+ * bile üretemeden (boş gövdeli 500) düşer. Bu dosyaları da /tmp'e alıyoruz.
+ */
+$cachePaths = [
+    'APP_SERVICES_CACHE' => $storagePath.'/bootstrap/services.php',
+    'APP_PACKAGES_CACHE' => $storagePath.'/bootstrap/packages.php',
+    'APP_CONFIG_CACHE' => $storagePath.'/bootstrap/config.php',
+    'APP_ROUTES_CACHE' => $storagePath.'/bootstrap/routes.php',
+    'APP_EVENTS_CACHE' => $storagePath.'/bootstrap/events.php',
+];
+
+if (! is_dir($storagePath.'/bootstrap')) {
+    mkdir($storagePath.'/bootstrap', 0755, true);
+}
+
+foreach ($cachePaths as $key => $path) {
+    $_ENV[$key] = $path;
+    $_SERVER[$key] = $path;
+    putenv($key.'='.$path);
+}
+
+/*
  * Bu dosya "api" klasöründe durduğu için Laravel, adresin başındaki "/api"
  * bölümünü uygulamanın taban yolu sanır ve onu isteğin yolundan siler.
  * Uygulamanın kendi API rotaları da "/api/..." altında olduğundan bu, tüm
