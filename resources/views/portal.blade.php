@@ -44,12 +44,12 @@
                             <div class="mb-3">
                                 <label for="barcodeInput" class="form-label">Barkod Numaranız</label>
                                 <input type="text" class="form-control" id="barcodeInput"
-                                       maxlength="50" autocomplete="off" placeholder="Örn: BARKOD456" required>
+                                       maxlength="50" autocomplete="off" placeholder="Örn: BARKOD-2026-001" required>
                             </div>
                             <div class="mb-3">
                                 <label for="lastFourInput" class="form-label">T.C. Kimlik No (Son 4 Hane)</label>
                                 <input type="text" inputmode="numeric" class="form-control numeric-only"
-                                       id="lastFourInput" maxlength="4" autocomplete="off" placeholder="••••" required>
+                                       id="lastFourInput" maxlength="4" autocomplete="off" placeholder="Örn: 8950" required>
                                 <div class="form-text field-hint">
                                     Sonucun size ait olduğunu doğrulamak için kimlik numaranızın son 4 hanesi gerekir.
                                 </div>
