@@ -4,6 +4,14 @@ Laboratuvar tahlil sonuçlarının kaydedildiği ve hastaların kendi sonuçlar�
 sorgulayabildiği tek sayfalık web uygulaması. Laravel 12 ve PostgreSQL ile
 geliştirilmiştir.
 
+Sağlık verisi KVKK kapsamında özel nitelikli kişisel veri olduğu için proje,
+veri güvenliği öncelikli tasarlanmıştır. Ayrıntılar
+[Güvenlik ve KVKK](#güvenlik-ve-kvkk) bölümündedir.
+
+> **Canlı demo:** https://lab-portal-tau.vercel.app
+> Demo sistemindeki tüm hasta ve tahlil verileri kurgusaldır.
+> Örnek sorgu: barkod `BARKOD-2026-001`, T.C. son 4 hane `8951`.
+
 ## Özellikler
 
 - **Hasta sorgulama** — Hasta, barkod numarası ve T.C. Kimlik Numarasının son
@@ -19,7 +27,71 @@ geliştirilmiştir.
 Sorgulama ekranı, personel girişi ve yönetim paneli tek bir sayfada
 (`/`) toplanmıştır; bölümler arası geçişte sayfa yenilenmez.
 
-## Güvenlik Notları
+## Ekran Görüntüleri
+
+**Hasta sorgulama** — Barkod ve T.C. Kimlik Numarasının son 4 hanesiyle
+sonuç sorgulanır. Üstteki şerit, demo sistemindeki verilerin kurgusal
+olduğunu belirtir.
+
+![Hasta sorgulama ekranı](docs/screenshots/01-hasta-sorgulama.png)
+
+**Yönetim paneli** — İstatistikler, arama, sayfalama ve kayıt işlemleri.
+Silme, çöp kutusu ve sistem logları yalnızca yönetici rolünde görünür.
+
+![Yönetim paneli](docs/screenshots/02-yonetim-paneli.png)
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Demo modunda T.C. doğrulaması</b><br>
+      Gerçek bir kişiye ait olabilecek numara reddedilir; yalnızca son hanesi
+      tek olan test numaraları kabul edilir.<br><br>
+      <img src="docs/screenshots/03-tc-dogrulama.png" alt="Demo modunda T.C. Kimlik Numarası doğrulaması">
+    </td>
+    <td width="50%" valign="top">
+      <b>Sistem işlem logları</b><br>
+      Ekleme, güncelleme, silme ve geri yükleme işlemleri, işlemi yapan
+      kullanıcıyla birlikte kaydedilir.<br><br>
+      <img src="docs/screenshots/04-sistem-loglari.png" alt="Sistem işlem logları">
+    </td>
+  </tr>
+</table>
+
+**Test belgesi** — Demo sisteminden alınan çıktılar başlıkta ve filigranla
+"TEST BELGESİ" olarak işaretlenir, "elektronik imzalıdır" ibaresi kaldırılır.
+
+<img src="docs/screenshots/05-test-belgesi.png" alt="TEST BELGESİ filigranlı yazdırma çıktısı" width="600">
+
+## Güvenlik ve KVKK
+
+### Demo modu: gerçek kişilere ait veri işlenmez
+
+Herkese açık demo kurulumu `DEMO_MODE=true` ile çalışır. Bu modda:
+
+- **Gerçek olabilecek T.C. Kimlik Numaraları sisteme girilemez.** Geçerli bir
+  T.C. Kimlik Numarasının son hanesi, doğrulama algoritması gereği **her zaman
+  çifttir**. Demo modunda yalnızca algoritmanın ilk 10 hane kurallarını
+  sağlayan ama son hanesi doğru değerin bir fazlası (yani **tek**) olan test
+  numaraları kabul edilir. Bu numaraların hiçbiri matematiksel olarak gerçek
+  bir kişiye ait olamaz. Gerçek olabilecek bir numara girilirse kayıt
+  reddedilir. Kural sunucuda ve tarayıcıda aynı şekilde uygulanır.
+- **Tüm demo verileri kurgusaldır.** Hasta adları, barkodlar ve tahlil
+  sonuçları uydurmadır; arayüzün üstünde bunu belirten kalıcı bir uyarı şeridi
+  bulunur.
+- **Yazdırılan belgeler "TEST BELGESİ" olarak işaretlenir.** Başlıkta ve her
+  sayfada çapraz filigranla belirtilir, "elektronik imzalıdır" ibaresi
+  kaldırılır; demo çıktısı resmî bir belge sanılamaz.
+
+Gerçek bir kurumda kullanılacaksa `DEMO_MODE` kapatılır; doğrulama gerçek
+T.C. Kimlik Numaralarını kabul eden standart kurala döner.
+
+> **Not:** Gerçek hasta verisiyle çalışacak bir kurulumda KVKK'nın özel
+> nitelikli veri ve yurt dışına aktarım hükümleri ayrıca değerlendirilmelidir.
+> Demo, verinin yurt dışındaki bulut sağlayıcılarda (Vercel, Neon) tutulduğu
+> bir mimariyle yayındadır; bu yüzden yalnızca kurgusal veriyle çalışır.
+
+### Uygulama güvenliği
+
 
 - **T.C. Kimlik Numarası doğrulaması** — Hem sunucuda
   (`app/Rules/TurkishIdentityNumber.php`) hem tarayıcıda aynı algoritma çalışır:
@@ -108,6 +180,7 @@ php artisan db:seed --force
 | `SESSION_DRIVER` | `cookie` |
 | `QUEUE_CONNECTION` | `sync` |
 | `LOG_CHANNEL` | `stderr` |
+| `DEMO_MODE` | `true` (herkese açık demo için) |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Yönetici hesabı |
 | `SEED_LAB_EMAIL` / `SEED_LAB_PASSWORD` | Laborant hesabı |
 
