@@ -28,6 +28,12 @@
     </div>
 </nav>
 
+@if (config('app.demo_mode'))
+    <div class="bg-warning-subtle border-bottom border-warning-subtle text-warning-emphasis text-center small py-2 px-3" role="note">
+        <strong>Bu bir demo sistemidir.</strong> Tüm hasta ve tahlil verileri kurgusaldır.
+    </div>
+@endif
+
 <div class="container my-4">
 
     {{-- ---------- 1. BÖLÜM: HASTA SORGULAMA (herkese açık) ---------- --}}
@@ -48,7 +54,7 @@
                             <div class="mb-3">
                                 <label for="lastFourInput" class="form-label">T.C. Kimlik No (Son 4 Hane)</label>
                                 <input type="text" inputmode="numeric" class="form-control numeric-only"
-                                       id="lastFourInput" maxlength="4" autocomplete="off" placeholder="Örn: 8950" required>
+                                       id="lastFourInput" maxlength="4" autocomplete="off" placeholder="Örn: 8951" required>
                                 <div class="form-text field-hint">
                                     Sonucun size ait olduğunu doğrulamak için kimlik numaranızın son 4 hanesi gerekir.
                                 </div>
@@ -193,7 +199,14 @@
                 <input type="text" inputmode="numeric" class="form-control numeric-only"
                        id="addIdentity" maxlength="11" autocomplete="off" required>
                 <div class="invalid-feedback" id="addIdentityFeedback"></div>
-                <div class="form-text field-hint">11 hane, yalnızca rakam. Numara doğrulama algoritmasından geçmelidir.</div>
+                @if (config('app.demo_mode'))
+                    <div class="form-text field-hint">
+                        Demo sistemi: gerçek kişilere ait olabilecek numaralar kabul edilmez.
+                        Geçerli bir numaranın son hanesini bir artırarak test numarası oluşturun (son hane tek olmalı).
+                    </div>
+                @else
+                    <div class="form-text field-hint">11 hane, yalnızca rakam. Numara doğrulama algoritmasından geçmelidir.</div>
+                @endif
             </div>
             <div class="mb-3">
                 <label class="form-label" for="addFullName">Hasta Adı Soyadı</label>
@@ -345,6 +358,8 @@ $(function () {
     /* ---------------------------------------------------------------
      * T.C. Kimlik Numarası doğrulaması (sunucudaki kuralın aynısı)
      * --------------------------------------------------------------- */
+    var DEMO_MODE = @json((bool) config('app.demo_mode'));
+
     function validateIdentityNumber(value) {
         if (!/^\d+$/.test(value)) {
             return 'T.C. Kimlik Numarası yalnızca rakamlardan oluşmalıdır.';
@@ -368,9 +383,18 @@ $(function () {
         }
 
         // 11. hane kontrolü. Bu kural gereği geçerli numaralar daima çift rakamla biter.
-        var firstTenSum = d.slice(0, 10).reduce(function (a, b) { return a + b; }, 0);
-        if (firstTenSum % 10 !== d[10]) {
-            return 'Geçersiz bir T.C. Kimlik Numarası girdiniz.';
+        var realLastDigit = d.slice(0, 10).reduce(function (a, b) { return a + b; }, 0) % 10;
+
+        if (!DEMO_MODE) {
+            return realLastDigit === d[10] ? null : 'Geçersiz bir T.C. Kimlik Numarası girdiniz.';
+        }
+
+        // Demo modunda yalnızca son hanesi bir fazla (tek) olan test numaraları kabul edilir
+        if (d[10] === realLastDigit) {
+            return 'Demo sisteminde gerçek kişilere ait olabilecek T.C. Kimlik Numarası kullanılamaz. Test numarası için son haneyi bir artırın.';
+        }
+        if (d[10] !== realLastDigit + 1) {
+            return 'Geçersiz bir test T.C. Kimlik Numarası girdiniz.';
         }
 
         return null;

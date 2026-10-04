@@ -184,3 +184,53 @@ it('çıkış yapıldığında token sunucuda geçersiz olur', function () {
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/sonuclar')->assertStatus(401);
 });
+
+/* ---------------- Demo modu ---------------- */
+
+it('demo modunda gerçek olabilecek kimlik numarasıyla kayıt eklenemez', function () {
+    config(['app.demo_mode' => true]);
+    Sanctum::actingAs(makeUser());
+
+    $this->postJson('/api/sonuclar', [
+        'identity_number' => '10000000146',
+        'full_name' => 'Mehmet Demir',
+        'barcode_number' => 'BARKOD999',
+        'test_name' => 'Kan Tahlili',
+        'result_details' => 'Detaylar',
+    ])->assertStatus(422)->assertJsonValidationErrors('identity_number');
+
+    expect(TestResult::count())->toBe(0);
+});
+
+it('demo modunda test kimlik numarasıyla kayıt eklenir', function () {
+    config(['app.demo_mode' => true]);
+    Sanctum::actingAs(makeUser());
+
+    $this->postJson('/api/sonuclar', [
+        'identity_number' => '10000000147',
+        'full_name' => 'Mehmet Demir',
+        'barcode_number' => 'BARKOD999',
+        'test_name' => 'Kan Tahlili',
+        'result_details' => 'Detaylar',
+    ])->assertStatus(201);
+});
+
+it('demo modunda arayüzde uyarı şeridi görünür', function () {
+    config(['app.demo_mode' => true]);
+
+    $this->get('/')->assertOk()->assertSee('Bu bir demo sistemidir.');
+});
+
+it('demo modu kapalıyken uyarı şeridi görünmez', function () {
+    config(['app.demo_mode' => false]);
+
+    $this->get('/')->assertOk()->assertDontSee('Bu bir demo sistemidir.');
+});
+
+it('demo modunda yazdırma sayfası test belgesi olarak işaretlenir', function () {
+    config(['app.demo_mode' => true]);
+
+    $this->get('/yazdir/1')->assertOk()
+        ->assertSee('TEST BELGESİ')
+        ->assertDontSee('Elektronik İmzalıdır');
+});

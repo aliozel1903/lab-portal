@@ -19,11 +19,22 @@ function makeIdentityNumber(array $firstNine): string
     return implode('', $d);
 }
 
-function passesIdentityRule(mixed $value): bool
+/**
+ * Geçerli bir numaranın son hanesini bir artırarak demo modu için test
+ * numarası üretir. Sonuç her zaman tek rakamla biter, gerçek olamaz.
+ */
+function makeTestIdentityNumber(array $firstNine): string
+{
+    $real = makeIdentityNumber($firstNine);
+
+    return substr($real, 0, 10).((int) $real[10] + 1);
+}
+
+function passesIdentityRule(mixed $value, bool $demoMode = false): bool
 {
     return Validator::make(
         ['identity_number' => $value],
-        ['identity_number' => [new TurkishIdentityNumber]]
+        ['identity_number' => [new TurkishIdentityNumber($demoMode)]]
     )->passes();
 }
 
@@ -73,5 +84,46 @@ it('geçerli numaralar daima çift rakamla biter', function () {
 
         expect(passesIdentityRule($number))->toBeTrue()
             ->and((int) $number[10] % 2)->toBe(0);
+    }
+});
+
+/* ---------------- Demo modu ---------------- */
+
+it('demo modunda gerçek olabilecek numarayı reddeder', function () {
+    expect(passesIdentityRule(makeIdentityNumber([1, 2, 3, 4, 5, 6, 7, 8, 9]), demoMode: true))->toBeFalse();
+});
+
+it('demo modunda son hanesi bir fazla olan test numarasını kabul eder', function () {
+    expect(passesIdentityRule(makeTestIdentityNumber([1, 2, 3, 4, 5, 6, 7, 8, 9]), demoMode: true))->toBeTrue();
+});
+
+it('normal modda test numarasını reddeder', function () {
+    expect(passesIdentityRule(makeTestIdentityNumber([1, 2, 3, 4, 5, 6, 7, 8, 9])))->toBeFalse();
+});
+
+it('demo modunda da temel kuralları uygular', function (string $value) {
+    expect(passesIdentityRule($value, demoMode: true))->toBeFalse();
+})->with(['ahmet', '123', '01234567891', '12345678901']);
+
+it('demo modunda son hanesi rastgele tek olan numarayı reddeder', function () {
+    $real = makeIdentityNumber([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    $wrongOdd = substr($real, 0, 10).(((int) $real[10] + 3) % 10);
+
+    expect(passesIdentityRule($wrongOdd, demoMode: true))->toBeFalse();
+});
+
+it('demo modunda kabul edilen her numara tek rakamla biter', function () {
+    // Gerçek numaralar daima çift bittiği için hiçbiri gerçek bir kişiye ait olamaz
+    for ($i = 0; $i < 500; $i++) {
+        $digits = [random_int(1, 9)];
+
+        for ($j = 0; $j < 8; $j++) {
+            $digits[] = random_int(0, 9);
+        }
+
+        $number = makeTestIdentityNumber($digits);
+
+        expect(passesIdentityRule($number, demoMode: true))->toBeTrue()
+            ->and((int) $number[10] % 2)->toBe(1);
     }
 });

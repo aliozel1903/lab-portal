@@ -15,7 +15,13 @@ use Illuminate\Contracts\Validation\ValidationRule;
  *  4. 10. hane: (1,3,5,7,9. hanelerin toplamı * 7 - 2,4,6,8. hanelerin toplamı) mod 10
  *  5. 11. hane: ilk 10 hanenin toplamı mod 10
  *
- * 5. kuralın doğal sonucu olarak geçerli bir TCKN her zaman çift rakamla biter.
+ * 5. kuralın doğal sonucu olarak geçerli bir TCKN her zaman çift rakamla biter:
+ * ilk 10 hanenin toplamı, 4. kural yerine konduğunda 8 × (tek sıradaki
+ * hanelerin toplamı) ile aynı kalana sahiptir ve bu her zaman çifttir.
+ *
+ * Demo modunda 5. kural tersine çevrilir: 11. hane, doğru değerin bir fazlası
+ * (yani tek bir rakam) olmalıdır. Böylece demo sistemine girilen hiçbir numara
+ * gerçek bir kişiye ait olamaz, ama 1-4. kurallar yine eksiksiz uygulanır.
  */
 class TurkishIdentityNumber implements ValidationRule
 {
@@ -24,6 +30,13 @@ class TurkishIdentityNumber implements ValidationRule
      * kuralı atlar ve alan 'required' ile birlikte kullanılmazsa boş geçer.
      */
     public bool $implicit = true;
+
+    private bool $demoMode;
+
+    public function __construct(?bool $demoMode = null)
+    {
+        $this->demoMode = $demoMode ?? (bool) config('app.demo_mode');
+    }
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
@@ -67,8 +80,25 @@ class TurkishIdentityNumber implements ValidationRule
             return;
         }
 
-        if (array_sum(array_slice($digits, 0, 10)) % 10 !== $digits[10]) {
-            $fail('Geçersiz bir T.C. Kimlik Numarası girdiniz.');
+        // Gerçek bir numarada 11. hanenin olması gereken değer (her zaman çift)
+        $realLastDigit = array_sum(array_slice($digits, 0, 10)) % 10;
+
+        if (! $this->demoMode) {
+            if ($digits[10] !== $realLastDigit) {
+                $fail('Geçersiz bir T.C. Kimlik Numarası girdiniz.');
+            }
+
+            return;
+        }
+
+        if ($digits[10] === $realLastDigit) {
+            $fail('Demo sisteminde gerçek kişilere ait olabilecek T.C. Kimlik Numarası kullanılamaz. Test numarası için son haneyi bir artırın.');
+
+            return;
+        }
+
+        if ($digits[10] !== $realLastDigit + 1) {
+            $fail('Geçersiz bir test T.C. Kimlik Numarası girdiniz.');
         }
     }
 }

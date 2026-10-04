@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resmi Tahlil Sonuç Belgesi</title>
+    <title>{{ config('app.demo_mode') ? 'TEST BELGESİ - Tahlil Sonucu' : 'Resmi Tahlil Sonuç Belgesi' }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         /* Sadece yazıcıda (veya PDF'te) geçerli olan CSS kuralları */
@@ -13,15 +13,34 @@
             .container { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
         }
         .header { border-bottom: 3px solid #333; padding-bottom: 15px; margin-bottom: 30px; }
+
+        /* Demo modunda her sayfanın ortasına çapraz "TEST BELGESİ" filigranı */
+        .test-watermark {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 6rem; font-weight: 800; letter-spacing: .5rem;
+            color: rgba(220, 53, 69, .12); white-space: nowrap;
+            pointer-events: none; z-index: 0;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+        }
     </style>
 </head>
 <body class="bg-light pt-4">
+
+@if (config('app.demo_mode'))
+    <div class="test-watermark" aria-hidden="true">TEST BELGESİ</div>
+@endif
 
 <div class="container bg-white p-5 shadow-sm" style="max-width: 800px;">
     <!-- Kurum Başlığı -->
     <div class="text-center header">
         <h2 class="fw-bold">ULUDAĞ BİLİŞİM LABORATUVARLARI</h2>
-        <h5 class="text-muted mb-0">Resmi Tahlil Sonuç Belgesi</h5>
+        @if (config('app.demo_mode'))
+            <h5 class="text-danger fw-bold mb-1">TEST BELGESİ</h5>
+            <p class="text-muted small mb-0">Demo sistemi çıktısıdır, resmî geçerliliği yoktur. Tüm veriler kurgusaldır.</p>
+        @else
+            <h5 class="text-muted mb-0">Resmi Tahlil Sonuç Belgesi</h5>
+        @endif
     </div>
     
     <!-- Hasta ve Barkod Bilgileri -->
@@ -47,7 +66,11 @@
         <div class="col-7"></div>
         <div class="col-5">
             <p class="mb-0 fw-bold">Onaylayan Uzman / Laborant</p>
-            <p class="text-muted" style="font-size: 0.9rem;">(Elektronik İmzalıdır)</p>
+            @if (config('app.demo_mode'))
+                <p class="text-muted" style="font-size: 0.9rem;">(Demo belgesi, imzasızdır)</p>
+            @else
+                <p class="text-muted" style="font-size: 0.9rem;">(Elektronik İmzalıdır)</p>
+            @endif
         </div>
     </div>
     

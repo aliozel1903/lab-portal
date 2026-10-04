@@ -123,4 +123,19 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Demo Modu
+    |--------------------------------------------------------------------------
+    |
+    | Herkese açık demo kurulumlarında gerçek kişilere ait olabilecek T.C.
+    | Kimlik Numaralarının sisteme girilmesini engeller. Açıkken yalnızca son
+    | hanesi tek olan "test numaraları" kabul edilir; geçerli bir T.C. Kimlik
+    | Numarası her zaman çift rakamla bittiği için bu numaraların hiçbiri
+    | gerçek bir kişiye ait olamaz. Arayüzde de demo uyarısı gösterilir.
+    |
+    */
+
+    'demo_mode' => (bool) env('DEMO_MODE', false),
+
 ];
