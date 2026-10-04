@@ -16,7 +16,6 @@
     <div class="container">
         <a class="navbar-brand fw-bold" href="/">Lab Portal</a>
         <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-outline-light btn-sm" id="darkModeBtn">🌙 Koyu Mod</button>
 
             <!-- Giriş yapılmamışken görünenler -->
             <button class="btn btn-light btn-sm fw-bold auth-hidden" id="showLoginBtn">Personel Girişi</button>
@@ -876,28 +875,6 @@ $(function () {
                 alert(errorMessage(xhr, 'Geri yükleme işlemi başarısız oldu.'));
             }
         });
-    });
-
-    /* ---------------------------------------------------------------
-     * Koyu mod
-     * --------------------------------------------------------------- */
-    var $darkModeBtn = $('#darkModeBtn');
-
-    if (localStorage.getItem('lab_theme') === 'dark') {
-        $('html').attr('data-bs-theme', 'dark');
-        $darkModeBtn.html('☀️ Açık Mod');
-    }
-
-    $darkModeBtn.click(function () {
-        if ($('html').attr('data-bs-theme') === 'dark') {
-            $('html').removeAttr('data-bs-theme');
-            localStorage.setItem('lab_theme', 'light');
-            $(this).html('🌙 Koyu Mod');
-        } else {
-            $('html').attr('data-bs-theme', 'dark');
-            localStorage.setItem('lab_theme', 'dark');
-            $(this).html('☀️ Açık Mod');
-        }
     });
 });
 </script>
