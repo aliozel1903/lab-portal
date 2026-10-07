@@ -6,16 +6,21 @@ use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use RuntimeException;
 
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
+    private const MIN_PASSWORD_LENGTH = 12;
+
     /**
      * Başlangıç kullanıcılarını oluşturur.
      *
      * Şifreler .env dosyasındaki SEED_ADMIN_PASSWORD / SEED_LAB_PASSWORD
-     * değerlerinden okunur; böylece depoda sabit bir şifre tutulmaz.
+     * değerlerinden okunur. Kodda varsayılan şifre yoktur: değer eksik ya da
+     * kısaysa seeder durur. Aksi halde herkese açık depoda yazan bir şifreyle
+     * yönetici hesabı oluşturulabilirdi.
      */
     public function run(): void
     {
@@ -24,7 +29,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Sistem Yöneticisi',
                 'role' => 'admin',
-                'password' => Hash::make(env('SEED_ADMIN_PASSWORD', 'degistir-beni')),
+                'password' => Hash::make($this->requirePassword('SEED_ADMIN_PASSWORD')),
             ]
         );
 
@@ -33,8 +38,22 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Laborant',
                 'role' => 'laborant',
-                'password' => Hash::make(env('SEED_LAB_PASSWORD', 'degistir-beni')),
+                'password' => Hash::make($this->requirePassword('SEED_LAB_PASSWORD')),
             ]
         );
+    }
+
+    private function requirePassword(string $key): string
+    {
+        $password = (string) env($key, '');
+
+        if (mb_strlen($password) < self::MIN_PASSWORD_LENGTH) {
+            throw new RuntimeException(
+                "{$key} tanımlı değil ya da ".self::MIN_PASSWORD_LENGTH.' karakterden kısa. '
+                .'Başlangıç kullanıcıları oluşturulmadı; .env dosyasına güçlü bir şifre girip tekrar deneyin.'
+            );
+        }
+
+        return $password;
     }
 }

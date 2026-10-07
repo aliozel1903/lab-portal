@@ -23,6 +23,7 @@
             <!-- Giriş yapılmışken görünenler -->
             <span class="text-white-50 small auth-only d-none" id="currentUserLabel"></span>
             <button class="btn btn-warning btn-sm fw-bold auth-only admin-only d-none" id="viewLogsBtn">Sistem Logları</button>
+            <button class="btn btn-outline-warning btn-sm fw-bold auth-only admin-only d-none" id="viewAccessLogsBtn">Erişim Logları</button>
             <button class="btn btn-outline-light btn-sm auth-only d-none" id="logoutBtn">Oturumu Kapat</button>
         </div>
     </div>
@@ -60,6 +61,10 @@
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary w-100 fw-bold" id="searchBtn">Sonucumu Bul</button>
+                            <p class="form-text field-hint text-center mt-3 mb-0">
+                                Güvenlik amacıyla sorgu zamanı, sorgulanan barkod ve IP adresiniz 1 yıl süreyle kaydedilir.
+                                T.C. Kimlik Numaranız kaydedilmez.
+                            </p>
                         </form>
 
                         <div id="searchError" class="alert alert-danger mt-3 d-none" role="alert"></div>
@@ -212,10 +217,8 @@
                 <label class="form-label" for="addFullName">Hasta Adı Soyadı</label>
                 <input type="text" class="form-control" id="addFullName" maxlength="255" required>
             </div>
-            <div class="mb-3">
-                <label class="form-label" for="addBarcode">Barkod Numarası</label>
-                <input type="text" class="form-control" id="addBarcode" maxlength="50" autocomplete="off" required>
-                <div class="form-text field-hint">Yalnızca harf, rakam ve tire (-).</div>
+            <div class="alert alert-light border small py-2 mb-3">
+                Barkod numarası kayıt sırasında sistem tarafından tahmin edilemeyecek şekilde üretilir.
             </div>
             <div class="mb-3">
                 <label class="form-label" for="addTestName">Tahlil Adı (Örn: Kan Tahlili)</label>
@@ -280,6 +283,29 @@
                 <tr><th>Tarih / Saat</th><th>Kullanıcı</th><th>İşlem</th><th>Detay</th></tr>
             </thead>
             <tbody id="logsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="accessLogsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title fw-bold">Erişim Logları</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <div class="px-3 py-2 small text-muted border-bottom">
+        Hasta sorguları, giriş denemeleri ve tam T.C. Kimlik Numarasının görüntülendiği kayıt açılışları.
+        Kayıtlar 1 yıl saklanır. Kimlik numarası ve son 4 hanesi kaydedilmez.
+      </div>
+      <div class="modal-body p-0 table-responsive">
+        <table class="table table-striped table-hover mb-0 text-center align-middle" style="font-size: .9rem;">
+            <thead class="table-dark">
+                <tr><th>Tarih / Saat</th><th>Olay</th><th>Sonuç</th><th>Kim</th><th>Barkod</th><th>IP Adresi</th></tr>
+            </thead>
+            <tbody id="accessLogsTableBody"></tbody>
         </table>
       </div>
     </div>
@@ -528,9 +554,14 @@ $(function () {
                 $('#resultArea').removeClass('d-none');
             },
             error: function (xhr) {
-                var message = xhr.status === 429
-                    ? 'Çok fazla deneme yaptınız. Lütfen bir dakika sonra tekrar deneyin.'
-                    : errorMessage(xhr, 'Girilen bilgilere ait bir sonuç bulunamadı.');
+                var json = xhr.responseJSON || {};
+                var message;
+                if (xhr.status === 429) {
+                    // Barkod kilidinin kendi mesajı var; IP sınırınınki yok
+                    message = json.locked ? json.message : 'Çok fazla deneme yaptınız. Lütfen bir dakika sonra tekrar deneyin.';
+                } else {
+                    message = errorMessage(xhr, 'Girilen bilgilere ait bir sonuç bulunamadı.');
+                }
                 showAlert($('#searchError'), message);
                 $('#resultArea').addClass('d-none');
             },
@@ -729,7 +760,6 @@ $(function () {
             data: {
                 identity_number: identity,
                 full_name: $('#addFullName').val(),
-                barcode_number: $('#addBarcode').val(),
                 test_name: $('#addTestName').val(),
                 result_details: $('#addDetails').val()
             },
@@ -739,6 +769,8 @@ $(function () {
                 $('#addIdentity').removeClass('is-invalid is-valid');
                 fetchResults(currentPage, currentSearch);
                 fetchStatistics();
+                // Barkodu sistem üretti; laborantın hastaya iletmesi gerekiyor
+                alert('Kayıt eklendi. Hastaya iletilecek barkod numarası: ' + response.barcode_number);
             },
             error: function (xhr) {
                 showAlert($('#addRecordError'), errorMessage(xhr, 'Kayıt eklenirken bir hata oluştu.'));
@@ -846,6 +878,51 @@ $(function () {
             },
             error: function (xhr) {
                 alert(errorMessage(xhr, 'Loglar çekilirken bir hata oluştu.'));
+            }
+        });
+    });
+
+    /* ---------- Erişim logları (yalnızca yönetici) ---------- */
+    var ACCESS_EVENTS = { hasta_sorgu: 'Hasta sorgusu', giris: 'Giriş', kayit_goruntuleme: 'Kayıt görüntüleme' };
+    var ACCESS_OUTCOMES = {
+        basarili: ['Başarılı', 'bg-success'],
+        basarisiz: ['Başarısız', 'bg-danger'],
+        kilitli: ['Kilitli', 'bg-dark']
+    };
+
+    $('#viewAccessLogsBtn').click(function () {
+        $.ajax({
+            url: '/api/erisim-loglari',
+            type: 'GET',
+            headers: authHeaders(),
+            success: function (response) {
+                var tbody = $('#accessLogsTableBody').empty();
+
+                if (response.length === 0) {
+                    tbody.append('<tr><td colspan="6" class="text-muted p-3">Henüz kaydedilmiş bir erişim yok.</td></tr>');
+                } else {
+                    response.forEach(function (log) {
+                        var outcome = ACCESS_OUTCOMES[log.outcome] || [log.outcome, 'bg-secondary'];
+                        // Herkese açık sorgularda personel yok, sorgulayan bir ziyaretçidir
+                        var who = log.user ? log.user.name : (log.event === 'hasta_sorgu' ? 'Ziyaretçi' : 'Bilinmeyen hesap');
+
+                        tbody.append(
+                            '<tr>' +
+                                '<td class="text-muted">' + esc(formatDateTime(log.created_at)) + '</td>' +
+                                '<td>' + esc(ACCESS_EVENTS[log.event] || log.event) + '</td>' +
+                                '<td><span class="badge ' + outcome[1] + '">' + esc(outcome[0]) + '</span></td>' +
+                                '<td class="fw-bold">' + esc(who) + '</td>' +
+                                '<td>' + (log.subject ? '<span class="badge bg-secondary">' + esc(log.subject) + '</span>' : '-') + '</td>' +
+                                '<td class="text-muted">' + esc(log.ip_address || '-') + '</td>' +
+                            '</tr>'
+                        );
+                    });
+                }
+
+                new bootstrap.Modal(document.getElementById('accessLogsModal')).show();
+            },
+            error: function (xhr) {
+                alert(errorMessage(xhr, 'Erişim logları çekilirken bir hata oluştu.'));
             }
         });
     });

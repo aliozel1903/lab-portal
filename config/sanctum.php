@@ -50,7 +50,9 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Giriş token'ları 8 saat (bir mesai günü) sonra geçersiz olur; ele
+    // geçirilmiş ya da unutulmuş bir token süresiz kullanılamaz.
+    'expiration' => 480,
 
     /*
     |--------------------------------------------------------------------------

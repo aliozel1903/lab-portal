@@ -17,6 +17,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
         ]);
+
+        // Vercel'de istekler fonksiyona Vercel'in kendi aracısı üzerinden
+        // gelir; aracıya güvenilmezse her ziyaretçinin IP'si 127.0.0.1 görünür
+        // ve IP başına istek sınırı herkes için ortak tek bir sayaca dönüşür.
+        // Vercel X-Forwarded-For başlığını kendisi yazdığı için ziyaretçi bu
+        // başlığı taklit edemez. Bayrak yalnızca api/index.php'de konur.
+        if (($_SERVER['LAB_PORTAL_TRUST_PROXY'] ?? null) === '1') {
+            $middleware->trustProxies(at: '*');
+        }
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

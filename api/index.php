@@ -72,6 +72,10 @@ foreach ($cachePaths as $key => $path) {
  * API isteklerinin 404 dönmesine yol açar. Giriş betiğini kök dizindeymiş
  * gibi tanıtarak Laravel'in isteği olduğu gibi görmesini sağlıyoruz.
  */
+// Bu dosya yalnızca Vercel'de çalışır; Vercel aracısına güvenilmesini
+// bootstrap/app.php'ye bildirir (gerçek ziyaretçi IP'si için).
+$_SERVER['LAB_PORTAL_TRUST_PROXY'] = '1';
+
 $_SERVER['SCRIPT_NAME'] = '/index.php';
 $_SERVER['PHP_SELF'] = '/index.php';
 $_SERVER['SCRIPT_FILENAME'] = __DIR__.'/../public/index.php';

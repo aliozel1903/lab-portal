@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AccessLog;
 use App\Models\Patient;
 use App\Models\SystemLog;
 use App\Models\TestResult;
@@ -10,10 +11,20 @@ use App\Rules\TurkishIdentityNumber;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\RateLimiter;
 
 class TestResultController extends Controller
 {
+    // Hasta sorgusunda barkod başına izin verilen hatalı deneme ve kilit süresi
+    private const LOOKUP_MAX_FAILURES = 5;
+
+    private const LOOKUP_LOCK_SECONDS = 3600;
+
+    // Barkod alfabesi: karışabilecek 0/O ve 1/I harfleri yok (32 karakter)
+    private const BARCODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+    private const BARCODE_LENGTH = 8;
+
     /**
      * Hastanın kendi sonucunu sorgulaması (herkese açık).
      *
@@ -30,23 +41,44 @@ class TestResultController extends Controller
             'identity_last_four.digits' => 'T.C. Kimlik Numarasının son 4 hanesi 4 rakamdan oluşmalıdır.',
         ]);
 
-        $result = TestResult::with('patient')
-            ->where('barcode_number', mb_convert_case($barcode, MB_CASE_UPPER, 'UTF-8'))
-            ->first();
+        $barcode = mb_substr(mb_convert_case(trim((string) $barcode), MB_CASE_UPPER, 'UTF-8'), 0, 100);
 
-        // Barkod yanlış da olsa kimlik son hanesi yanlış da olsa aynı mesajı
-        // döneriz; aksi halde hangi barkodların var olduğu tespit edilebilir.
-        $notFound = response()->json([
-            'message' => 'Girilen bilgilere ait bir sonuç bulunamadı.',
-        ], 404);
+        // IP başına sınır, çok sayıda IP kullanan bir saldırganı durdurmaz.
+        // Bu yüzden barkod başına da sınır var: aynı barkoda 1 saatte 5 hatalı
+        // denemeden sonra o barkod kilitlenir. Kilit, var olmayan barkodlar için
+        // de aynı şekilde işler; aksi halde kilit mesajı barkodun var olduğunu
+        // ele verirdi. Kilitliyken doğru bilgi girilse bile sonuç verilmez.
+        $lockKey = 'hasta-sorgu-barkod:'.sha1($barcode);
 
-        if (! $result || ! $result->patient) {
-            return $notFound;
+        if (RateLimiter::tooManyAttempts($lockKey, self::LOOKUP_MAX_FAILURES)) {
+            AccessLog::record($request, AccessLog::EVENT_PATIENT_LOOKUP, AccessLog::OUTCOME_LOCKED, null, $barcode);
+
+            $minutes = max(1, (int) ceil(RateLimiter::availableIn($lockKey) / 60));
+
+            return response()->json([
+                'message' => "Bu barkod için çok fazla hatalı deneme yapıldı. Lütfen {$minutes} dakika sonra tekrar deneyin.",
+                'locked' => true,
+            ], 429);
         }
 
-        if (! hash_equals(substr($result->patient->identity_number, -4), $validated['identity_last_four'])) {
-            return $notFound;
+        $result = TestResult::with('patient')->where('barcode_number', $barcode)->first();
+
+        $matches = $result
+            && $result->patient
+            && hash_equals(substr($result->patient->identity_number, -4), $validated['identity_last_four']);
+
+        if (! $matches) {
+            RateLimiter::hit($lockKey, self::LOOKUP_LOCK_SECONDS);
+            AccessLog::record($request, AccessLog::EVENT_PATIENT_LOOKUP, AccessLog::OUTCOME_FAILURE, null, $barcode);
+
+            // Barkod yanlış da olsa kimlik son hanesi yanlış da olsa aynı mesajı
+            // döneriz; aksi halde hangi barkodların var olduğu tespit edilebilir.
+            return response()->json([
+                'message' => 'Girilen bilgilere ait bir sonuç bulunamadı.',
+            ], 404);
         }
+
+        AccessLog::record($request, AccessLog::EVENT_PATIENT_LOOKUP, AccessLog::OUTCOME_SUCCESS, null, $barcode);
 
         return response()->json([
             'patient_name' => $result->patient->full_name,
@@ -89,28 +121,14 @@ class TestResultController extends Controller
         $validated = $request->validate([
             'identity_number' => ['required', new TurkishIdentityNumber],
             'full_name' => ['required', 'string', 'min:3', 'max:255', "regex:/^[\p{L}\s.'-]+$/u"],
-            'barcode_number' => ['required', 'string', 'min:3', 'max:50', 'regex:/^[A-Za-z0-9-]+$/'],
             'test_name' => ['required', 'string', 'max:255'],
             'result_details' => ['required', 'string', 'max:5000'],
         ], [
             'full_name.regex' => 'Hasta adı yalnızca harf, boşluk ve - . \' işaretlerini içerebilir.',
-            'barcode_number.regex' => 'Barkod numarası yalnızca harf, rakam ve tire (-) içerebilir.',
         ]);
 
-        $formattedBarcode = mb_convert_case($validated['barcode_number'], MB_CASE_UPPER, 'UTF-8');
-
-        // Barkod, çöp kutusundaki bir kayda ait olabilir. Veritabanındaki
-        // benzersizlik kısıtı silinmiş kayıtları da kapsadığı için kullanıcıya
-        // teknik hata yerine ne yapması gerektiğini anlatıyoruz.
-        $existing = TestResult::withTrashed()->where('barcode_number', $formattedBarcode)->first();
-
-        if ($existing) {
-            throw ValidationException::withMessages([
-                'barcode_number' => $existing->trashed()
-                    ? 'Bu barkod çöp kutusundaki bir kayda ait. Kaydı geri yükleyin veya farklı bir barkod girin.'
-                    : 'Bu barkod numarası zaten kullanılıyor.',
-            ]);
-        }
+        // Barkod kullanıcıdan alınmaz, tahmin edilemeyecek şekilde üretilir
+        $formattedBarcode = $this->generateBarcode();
 
         // Kullanıcı nasıl yazarsa yazsın, her kelimenin ilk harfini büyük yap (Türkçe uyumlu)
         $formattedFullName = mb_convert_case($validated['full_name'], MB_CASE_TITLE, 'UTF-8');
@@ -133,11 +151,36 @@ class TestResultController extends Controller
             'description' => $formattedBarcode.' barkodlu hastanın ('.$formattedFullName.') tahlil sonucu eklendi.',
         ]);
 
-        return response()->json(['message' => 'Kayıt başarıyla eklendi!'], 201);
+        return response()->json([
+            'message' => 'Kayıt başarıyla eklendi!',
+            'barcode_number' => $formattedBarcode,
+        ], 201);
+    }
+
+    /**
+     * Tahmin edilemeyen benzersiz barkod üretir (ör. LP-7K2QX9M4).
+     *
+     * random_int kriptografik olarak güvenli rastgelelik kullanır. Çakışma
+     * kontrolü çöp kutusundaki kayıtları da kapsar, çünkü veritabanındaki
+     * benzersizlik kısıtı silinmiş kayıtlar için de geçerlidir.
+     */
+    private function generateBarcode(): string
+    {
+        $alphabetLength = strlen(self::BARCODE_ALPHABET);
+
+        do {
+            $code = 'LP-';
+
+            for ($i = 0; $i < self::BARCODE_LENGTH; $i++) {
+                $code .= self::BARCODE_ALPHABET[random_int(0, $alphabetLength - 1)];
+            }
+        } while (TestResult::withTrashed()->where('barcode_number', $code)->exists());
+
+        return $code;
     }
 
     // Tek bir sonucu ID'ye göre getirir (düzenleme formu ve yazdırma belgesi için)
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $result = TestResult::with('patient')->find($id);
 
@@ -146,8 +189,11 @@ class TestResultController extends Controller
         }
 
         // Kimlik numarası varsayılan olarak gizlidir; resmî belgede gerektiği
-        // için yalnızca bu yetkili uç noktada görünür kılıyoruz.
+        // için yalnızca bu yetkili uç noktada görünür kılıyoruz. Tam kimlik
+        // numarasının kimin tarafından görüntülendiği kayıt altına alınır.
         $result->patient?->makeVisible('identity_number');
+
+        AccessLog::record($request, AccessLog::EVENT_RECORD_VIEW, AccessLog::OUTCOME_SUCCESS, $request->user()?->id, $result->barcode_number);
 
         return response()->json($result, 200);
     }
@@ -204,6 +250,14 @@ class TestResultController extends Controller
     public function getLogs()
     {
         $logs = SystemLog::with('user:id,name')->orderBy('created_at', 'desc')->limit(200)->get();
+
+        return response()->json($logs, 200);
+    }
+
+    // Özel nitelikli verilere erişim kayıtları (yalnızca yönetici)
+    public function getAccessLogs()
+    {
+        $logs = AccessLog::with('user:id,name')->orderBy('created_at', 'desc')->orderBy('id', 'desc')->limit(200)->get();
 
         return response()->json($logs, 200);
     }

@@ -76,20 +76,20 @@ it('geçersiz kimlik numarasıyla kayıt eklenemez', function (string $identity)
     expect(TestResult::count())->toBe(0);
 })->with(['ahmet', '12345678901', '123', '0123456789']);
 
-it('geçerli kimlik numarasıyla kayıt eklenir', function () {
+it('geçerli kimlik numarasıyla kayıt eklenir ve barkod sistem tarafından üretilir', function () {
     Sanctum::actingAs(makeUser());
 
-    $this->postJson('/api/sonuclar', [
+    $response = $this->postJson('/api/sonuclar', [
         'identity_number' => '10000000146',
         'full_name' => 'mehmet demir',
-        'barcode_number' => 'barkod999',
         'test_name' => 'Kan Tahlili',
         'result_details' => 'Detaylar',
     ])->assertStatus(201);
 
     $result = TestResult::with('patient')->first();
 
-    expect($result->barcode_number)->toBe('BARKOD999')
+    expect($result->barcode_number)->toMatch('/^LP-[A-HJ-NP-Z2-9]{8}$/')
+        ->and($response->json('barcode_number'))->toBe($result->barcode_number)
         ->and($result->patient->full_name)->toBe('Mehmet Demir');
 });
 
@@ -105,17 +105,24 @@ it('hasta adında HTML etiketi kabul etmez', function () {
     ])->assertStatus(422)->assertJsonValidationErrors('full_name');
 });
 
-it('çöp kutusundaki barkod için açıklayıcı hata döner', function () {
+it('kullanıcının gönderdiği barkod yok sayılır, her kayda farklı barkod üretilir', function () {
     Sanctum::actingAs(makeUser());
-    makeResult(barcode: 'BARKOD456')->delete();
 
-    $this->postJson('/api/sonuclar', [
-        'identity_number' => '10000000146',
-        'full_name' => 'Mehmet Demir',
-        'barcode_number' => 'BARKOD456',
-        'test_name' => 'Kan Tahlili',
-        'result_details' => 'Detaylar',
-    ])->assertStatus(422)->assertJsonValidationErrors('barcode_number');
+    foreach (['10000000146', '10000000146'] as $identity) {
+        $this->postJson('/api/sonuclar', [
+            'identity_number' => $identity,
+            'full_name' => 'Mehmet Demir',
+            'barcode_number' => 'BARKOD-2026-001',
+            'test_name' => 'Kan Tahlili',
+            'result_details' => 'Detaylar',
+        ])->assertStatus(201);
+    }
+
+    $barcodes = TestResult::pluck('barcode_number');
+
+    expect($barcodes)->toHaveCount(2)
+        ->and($barcodes->unique())->toHaveCount(2)
+        ->and($barcodes)->not->toContain('BARKOD-2026-001');
 });
 
 /* ---------------- Yetkilendirme ---------------- */

@@ -8,10 +8,10 @@ use Illuminate\Support\Facades\Route;
 // Herkese açık rotalar. Her ikisi de deneme yanılma saldırılarına açık olduğu
 // için IP başına dakikalık istek sınırı uygulanıyor.
 Route::post('/sonuc/{barcode}', [TestResultController::class, 'getResultByBarcode'])
-    ->middleware('throttle:10,1');
+    ->middleware('throttle:hasta-sorgu');
 
 Route::post('/login', [AuthController::class, 'login'])
-    ->middleware('throttle:5,1');
+    ->middleware('throttle:giris');
 
 // Sadece giriş yapmış (token'ı olan) kullanıcıların erişebileceği rotalar
 Route::middleware('auth:sanctum')->group(function () {
@@ -50,5 +50,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('admin')->group(function () {
         Route::delete('/sonuclar/{id}', [TestResultController::class, 'destroy'])->whereNumber('id');
         Route::get('/loglar', [TestResultController::class, 'getLogs']);
+        Route::get('/erisim-loglari', [TestResultController::class, 'getAccessLogs']);
     });
 });
