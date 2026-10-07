@@ -90,6 +90,23 @@ T.C. Kimlik Numaralarını kabul eden standart kurala döner.
 > Demo, verinin yurt dışındaki bulut sağlayıcılarda (Vercel, Neon) tutulduğu
 > bir mimariyle yayındadır; bu yüzden yalnızca kurgusal veriyle çalışır.
 
+### Erişim kayıtları
+
+Özel nitelikli verilere erişim kayıt altına alınır ve yalnızca yönetici
+tarafından "Erişim Logları" ekranında görüntülenebilir:
+
+| Olay | Kaydedilen |
+|---|---|
+| Hasta sorgusu | Sonuç (başarılı / başarısız / kilitli), sorgulanan barkod, IP, tarayıcı bilgisi, zaman |
+| Personel girişi | Sonuç, hesap (deneme gerçek bir hesaba yapıldıysa), IP, zaman |
+| Kayıt görüntüleme | Tam T.C. Kimlik Numarasını gören personel, kaydın barkodu, IP, zaman |
+
+KVKK'nın veri minimizasyonu ilkesi gereği **T.C. Kimlik Numarası ve son 4
+hanesi hiçbir koşulda kaydedilmez.** Başarısız girişlerde yazılan e-posta
+adresi de saklanmaz. Kayıtlar **1 yıl** sonra otomatik olarak silinir
+(`php artisan model:prune` ile elle de temizlenebilir). Sorgu ekranında
+ziyaretçi, hangi bilgilerinin ne süreyle tutulduğu konusunda bilgilendirilir.
+
 ### Uygulama güvenliği
 
 
@@ -102,9 +119,23 @@ T.C. Kimlik Numaralarını kabul eden standart kurala döner.
   gizlidir; yalnızca yetkili belge uç noktasında görünür kılınır. Herkese açık
   sorgulama yanıtında hiçbir koşulda yer almaz.
 - **İstek sınırlama** — Giriş ve hasta sorgulama uç noktalarında IP başına
-  dakikalık istek limiti vardır; barkod deneme yanılmasını engeller.
-- **Token tabanlı kimlik doğrulama** — Laravel Sanctum. Çıkış yapıldığında
-  token sunucu tarafında da iptal edilir.
+  dakikalık istek limiti vardır. Vercel'de istekler bir aracı üzerinden
+  geldiği için ziyaretçinin gerçek IP'si Vercel'in yazdığı `X-Forwarded-For`
+  başlığından okunur; aksi halde tüm ziyaretçiler aynı sayacı paylaşırdı.
+  Hasta sorgusu ve personel girişinin sayaçları ayrıdır; hatalı sorgular
+  personelin girişini engellemez.
+- **Barkod başına kilit** — Aynı barkoda 1 saat içinde 5 hatalı sorgudan sonra
+  o barkod kilitlenir; çok sayıda IP kullanan bir saldırgan da durdurulur.
+  Kilit var olmayan barkodlar için de aynı şekilde işler, böylece kilit mesajı
+  bir barkodun var olup olmadığını ele vermez.
+- **Tahmin edilemeyen barkodlar** — Yeni kayıtların barkodu kullanıcıdan
+  alınmaz; kriptografik olarak güvenli rastgelelikle üretilir
+  (`LP-` + 8 karakter, yaklaşık 10¹² ihtimal).
+- **Token tabanlı kimlik doğrulama** — Laravel Sanctum. Token'lar 8 saat sonra
+  geçersiz olur; çıkış yapıldığında sunucu tarafında da iptal edilir.
+- **Varsayılan şifre yok** — Başlangıç kullanıcılarının şifreleri yalnızca
+  ortam değişkenlerinden okunur. Değer eksik ya da 12 karakterden kısaysa
+  kurulum hata verip durur.
 - **XSS koruması** — Veritabanından gelen tüm metinler arayüze basılmadan önce
   kaçışlanır; hasta adı gibi alanlar ayrıca sunucuda biçim doğrulamasından geçer.
 
@@ -119,7 +150,8 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-`.env` dosyasındaki veritabanı bilgilerini ve `SEED_*` şifrelerini doldurun,
+`.env` dosyasındaki veritabanı bilgilerini ve `SEED_*` şifrelerini (en az 12
+karakter) doldurun,
 ardından:
 
 ```bash
