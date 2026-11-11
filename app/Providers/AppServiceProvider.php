@@ -29,5 +29,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('giris', fn (Request $request) => Limit::perMinute(5)->by('giris|'.$request->ip()));
 
         RateLimiter::for('hasta-sorgu', fn (Request $request) => Limit::perMinute(10)->by('hasta-sorgu|'.$request->ip()));
+
+        // Tam ad açma tek tek yapılır; toplu ad çekmeyi zorlaştırmak için
+        // kullanıcı başına dakikada 30 istekle sınırlıyoruz.
+        RateLimiter::for('ad-goster', fn (Request $request) => Limit::perMinute(30)->by('ad-goster|'.($request->user()?->id ?: $request->ip())));
     }
 }

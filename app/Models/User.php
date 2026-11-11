@@ -38,4 +38,12 @@ class User extends Authenticatable
     {
         return $this->role === 'admin';
     }
+
+    /**
+     * Laboratuvar personeli mi? (hastanın tam adını görme yetkisi)
+     */
+    public function isStaff(): bool
+    {
+        return in_array($this->role, ['admin', 'laborant'], true);
+    }
 }

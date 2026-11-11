@@ -48,16 +48,18 @@ it('kimlik son 4 hanesi yanlışsa sonuç vermez', function () {
         ->assertStatus(404);
 });
 
-it('doğru bilgilerle sonucu döner ama kimlik numarasını sızdırmaz', function () {
+it('doğru bilgilerle sonucu döner ama kimlik numarasını ve tam adı sızdırmaz', function () {
     makeResult(identityNumber: '10000000146');
 
     $response = $this->postJson('/api/sonuc/BARKOD456', ['identity_last_four' => '0146'])
         ->assertStatus(200)
-        ->assertJsonPath('patient_name', 'Ayşe Yılmaz')
+        ->assertJsonPath('patient_name', 'A*** Y***')
         ->assertJsonPath('test_name', 'Kan Tahlili');
 
     expect($response->json())->not->toHaveKey('patient')
-        ->and(json_encode($response->json()))->not->toContain('10000000146');
+        ->and($response->content())->not->toContain('10000000146')
+        ->and($response->content())->not->toContain('Ayşe')
+        ->and($response->content())->not->toContain('Yılmaz');
 });
 
 /* ---------------- Kayıt ekleme doğrulaması ---------------- */

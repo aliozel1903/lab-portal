@@ -93,9 +93,9 @@
 
         var recordId = "{{ $id }}"; // Laravel'den gelen ID
 
-        // API'den tek bir kaydın bilgilerini çek
+        // API'den belgenin bilgilerini çek (her yazdırma sistem loguna düşer)
         $.ajax({
-            url: '/api/sonuclar/' + recordId,
+            url: '/api/sonuclar/' + recordId + '/belge',
             type: 'GET',
             headers: { 'Authorization': 'Bearer ' + token },
             success: function(response) {

@@ -38,16 +38,26 @@ Route::middleware('auth:sanctum')->group(function () {
     // Yeni kayıt ekleme
     Route::post('/sonuclar', [TestResultController::class, 'store']);
 
-    // Çöp kutusu rotaları parametreli rotalardan önce tanımlanmalı
-    Route::get('/sonuclar/cop-kutusu', [TestResultController::class, 'getTrashedResults']);
-    Route::put('/sonuclar/{id}/geri-yukle', [TestResultController::class, 'restore'])
-        ->whereNumber('id');
-
-    Route::get('/sonuclar/{id}', [TestResultController::class, 'show'])->whereNumber('id');
     Route::put('/sonuclar/{id}', [TestResultController::class, 'update'])->whereNumber('id');
 
-    // Silme ve sistem logları yalnızca yönetici rolündeki kullanıcılara açık
+    // Hastanın tam adını açan uç noktalar yalnızca laboratuvar personeline
+    // açıktır; ad açma ve yazdırma ayrıca sistem loguna yazılır
+    Route::middleware('staff')->group(function () {
+        Route::get('/sonuclar/{id}', [TestResultController::class, 'show'])->whereNumber('id');
+        Route::post('/sonuclar/{id}/ad-goster', [TestResultController::class, 'revealName'])
+            ->whereNumber('id')
+            ->middleware('throttle:ad-goster');
+        Route::get('/sonuclar/{id}/belge', [TestResultController::class, 'printDocument'])
+            ->whereNumber('id');
+    });
+
+    // Silme, çöp kutusu ve sistem logları yalnızca yönetici rolündeki kullanıcılara açık
     Route::middleware('admin')->group(function () {
+        // Çöp kutusu rotaları parametreli rotalardan önce tanımlanmalı
+        Route::get('/sonuclar/cop-kutusu', [TestResultController::class, 'getTrashedResults']);
+        Route::put('/sonuclar/{id}/geri-yukle', [TestResultController::class, 'restore'])
+            ->whereNumber('id');
+
         Route::delete('/sonuclar/{id}', [TestResultController::class, 'destroy'])->whereNumber('id');
         Route::get('/loglar', [TestResultController::class, 'getLogs']);
         Route::get('/erisim-loglari', [TestResultController::class, 'getAccessLogs']);

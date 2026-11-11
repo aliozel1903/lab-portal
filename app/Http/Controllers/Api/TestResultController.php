@@ -80,8 +80,10 @@ class TestResultController extends Controller
 
         AccessLog::record($request, AccessLog::EVENT_PATIENT_LOOKUP, AccessLog::OUTCOME_SUCCESS, null, $barcode);
 
+        // Ad maskeli döner: biri başkasının barkodunu ve kimlik son hanelerini
+        // ele geçirse bile hastanın tam adını öğrenemez.
         return response()->json([
-            'patient_name' => $result->patient->full_name,
+            'patient_name' => $result->patient->masked_name,
             'barcode_number' => $result->barcode_number,
             'test_name' => $result->test_name,
             'result_details' => $result->result_details,
@@ -145,10 +147,11 @@ class TestResultController extends Controller
         $result->result_details = $validated['result_details'];
         $result->save();
 
+        // Loglarda hasta adı açık yazılmaz, maskeli yazılır
         SystemLog::create([
             'user_id' => Auth::id(),
-            'action' => 'Ekleme',
-            'description' => $formattedBarcode.' barkodlu hastanın ('.$formattedFullName.') tahlil sonucu eklendi.',
+            'action' => SystemLog::ACTION_CREATE,
+            'description' => $formattedBarcode.' barkodlu hastanın ('.Patient::maskName($patient->full_name).') tahlil sonucu eklendi.',
         ]);
 
         return response()->json([
@@ -179,23 +182,81 @@ class TestResultController extends Controller
         return $code;
     }
 
-    // Tek bir sonucu ID'ye göre getirir (düzenleme formu ve yazdırma belgesi için)
+    // Tek bir sonucu ID'ye göre getirir (düzenleme formu için)
     public function show(Request $request, $id)
     {
-        $result = TestResult::with('patient')->find($id);
+        $result = $this->findWithFullPatient($request, $id);
 
         if (! $result) {
             return response()->json(['message' => 'Kayıt bulunamadı.'], 404);
         }
 
-        // Kimlik numarası varsayılan olarak gizlidir; resmî belgede gerektiği
-        // için yalnızca bu yetkili uç noktada görünür kılıyoruz. Tam kimlik
-        // numarasının kimin tarafından görüntülendiği kayıt altına alınır.
-        $result->patient?->makeVisible('identity_number');
+        return response()->json($result, 200);
+    }
+
+    // Yazdırma belgesi için kaydı getirir; her yazdırma sistem loguna düşer
+    public function printDocument(Request $request, $id)
+    {
+        $result = $this->findWithFullPatient($request, $id);
+
+        if (! $result) {
+            return response()->json(['message' => 'Kayıt bulunamadı.'], 404);
+        }
+
+        SystemLog::create([
+            'user_id' => Auth::id(),
+            'action' => SystemLog::ACTION_PRINT,
+            'description' => $result->barcode_number.' barkodlu tahlil sonucu yazdırıldı.',
+        ]);
+
+        return response()->json($result, 200);
+    }
+
+    /**
+     * Yönetim panelinde maskeli adın yerine tam adı açar.
+     *
+     * Tam ad listeye baştan gömülmez; yalnızca personel bu uç noktayı tek tek
+     * çağırarak görebilir ve her görüntüleme kimin yaptığıyla loglanır.
+     * Log detayında adın kendisi yer almaz.
+     */
+    public function revealName($id)
+    {
+        $result = TestResult::with('patient')->find($id);
+
+        if (! $result || ! $result->patient) {
+            return response()->json(['message' => 'Kayıt bulunamadı.'], 404);
+        }
+
+        SystemLog::create([
+            'user_id' => Auth::id(),
+            'action' => SystemLog::ACTION_VIEW_NAME,
+            'description' => $result->barcode_number.' barkodlu hastanın adı görüntülendi.',
+        ]);
+
+        return response()->json(['full_name' => $result->patient->full_name], 200);
+    }
+
+    /**
+     * Kaydı hastanın tam adı ve kimlik numarasıyla birlikte getirir.
+     *
+     * Bu iki alan varsayılan olarak gizlidir; düzenleme formunda ve resmî
+     * belgede gerektiği için yalnızca yetkili uç noktalarda görünür
+     * kılıyoruz. Tam kimlik numarasının kimin tarafından görüntülendiği
+     * erişim loguna kaydedilir.
+     */
+    private function findWithFullPatient(Request $request, $id): ?TestResult
+    {
+        $result = TestResult::with('patient')->find($id);
+
+        if (! $result) {
+            return null;
+        }
+
+        $result->patient?->makeVisible(['identity_number', 'full_name']);
 
         AccessLog::record($request, AccessLog::EVENT_RECORD_VIEW, AccessLog::OUTCOME_SUCCESS, $request->user()?->id, $result->barcode_number);
 
-        return response()->json($result, 200);
+        return $result;
     }
 
     // Tahlil sonucunu günceller
@@ -218,7 +279,7 @@ class TestResultController extends Controller
 
         SystemLog::create([
             'user_id' => Auth::id(),
-            'action' => 'Güncelleme',
+            'action' => SystemLog::ACTION_UPDATE,
             'description' => $result->barcode_number.' barkodlu tahlil sonucu güncellendi.',
         ]);
 
@@ -239,7 +300,7 @@ class TestResultController extends Controller
 
         SystemLog::create([
             'user_id' => Auth::id(),
-            'action' => 'Silme',
+            'action' => SystemLog::ACTION_DELETE,
             'description' => $barcode.' barkodlu tahlil sonucu çöp kutusuna taşındı.',
         ]);
 
@@ -283,7 +344,7 @@ class TestResultController extends Controller
 
         SystemLog::create([
             'user_id' => Auth::id(),
-            'action' => 'Geri Yükleme',
+            'action' => SystemLog::ACTION_RESTORE,
             'description' => $result->barcode_number.' barkodlu tahlil sonucu çöp kutusundan geri yüklendi.',
         ]);
 

@@ -639,7 +639,12 @@ $(function () {
                     var isAdmin = currentUser && currentUser.role === 'admin';
 
                     results.forEach(function (item) {
-                        var patientName = item.patient ? item.patient.full_name : '-';
+                        // Liste yalnızca maskeli adı içerir; tam ad göz düğmesiyle
+                        // tek tek ve loglanarak sunucudan istenir.
+                        var patientName = item.patient ? item.patient.masked_name : '-';
+                        var revealBtn = item.patient
+                            ? ' <button type="button" class="btn btn-sm btn-link p-0 ms-1 text-decoration-none reveal-name-btn" data-id="' + esc(item.id) + '" title="Tam adı göster" aria-label="Tam adı göster" aria-pressed="false">👁</button>'
+                            : '';
                         var deleteBtn = isAdmin
                             ? '<button class="btn btn-sm btn-outline-danger delete-btn" data-id="' + esc(item.id) + '">Sil</button>'
                             : '';
@@ -648,7 +653,7 @@ $(function () {
                             '<tr>' +
                                 '<td>' + esc(item.id) + '</td>' +
                                 '<td><span class="badge bg-secondary">' + esc(item.barcode_number) + '</span></td>' +
-                                '<td class="fw-bold">' + esc(patientName) + '</td>' +
+                                '<td class="fw-bold text-nowrap"><span class="patient-name" data-masked="' + esc(patientName) + '">' + esc(patientName) + '</span>' + revealBtn + '</td>' +
                                 '<td>' + esc(item.test_name) + '</td>' +
                                 '<td>' + esc(formatDate(item.created_at)) + '</td>' +
                                 '<td>' +
@@ -779,6 +784,38 @@ $(function () {
     });
 
     /* ---------- Düzenleme ---------- */
+    /* ---------- Tam adı göster / gizle ---------- */
+    $(document).on('click', '.reveal-name-btn', function () {
+        var $btn = $(this);
+        var $name = $btn.siblings('.patient-name');
+
+        // Ad açıksa sunucuya gitmeden tekrar maskeleriz
+        if ($btn.attr('aria-pressed') === 'true') {
+            $name.text($name.data('masked'));
+            $btn.attr({ 'aria-pressed': 'false', title: 'Tam adı göster', 'aria-label': 'Tam adı göster' });
+            return;
+        }
+
+        $btn.prop('disabled', true);
+
+        $.ajax({
+            url: '/api/sonuclar/' + encodeURIComponent($btn.data('id')) + '/ad-goster',
+            type: 'POST',
+            headers: authHeaders(),
+            success: function (response) {
+                $name.text(response.full_name);
+                $btn.attr({ 'aria-pressed': 'true', title: 'Adı gizle', 'aria-label': 'Adı gizle' });
+            },
+            error: function (xhr) {
+                if (xhr.status === 401) { clearSession(); return; }
+                alert(errorMessage(xhr, 'Tam ad getirilemedi.'));
+            },
+            complete: function () {
+                $btn.prop('disabled', false);
+            }
+        });
+    });
+
     $(document).on('click', '.edit-btn', function () {
         var id = $(this).data('id');
         hideAlert($('#editRecordError'));
@@ -862,6 +899,8 @@ $(function () {
                         if (log.action === 'Ekleme') badgeClass = 'bg-success';
                         else if (log.action === 'Güncelleme') badgeClass = 'bg-primary';
                         else if (log.action === 'Silme') badgeClass = 'bg-danger';
+                        else if (log.action === 'Görüntüleme') badgeClass = 'bg-info text-dark';
+                        else if (log.action === 'Yazdırma') badgeClass = 'bg-dark';
 
                         tbody.append(
                             '<tr>' +
@@ -940,7 +979,7 @@ $(function () {
                     tbody.append('<tr><td colspan="5" class="text-muted p-4">Çöp kutusu boş.</td></tr>');
                 } else {
                     response.forEach(function (item) {
-                        var patientName = item.patient ? item.patient.full_name : '-';
+                        var patientName = item.patient ? item.patient.masked_name : '-';
 
                         tbody.append(
                             '<tr>' +
