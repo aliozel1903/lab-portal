@@ -12,6 +12,7 @@ use App\Models\Patient;
 use App\Models\SystemLog;
 use App\Models\TestResult;
 use App\Models\User;
+use Database\Seeders\DemoDataSeeder;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 
@@ -288,3 +289,33 @@ it('maskeleme komutu --uygula ile yalnızca açık adları maskeler', function (
         ->expectsOutputToContain('Maskelenecek log kaydı yok.')
         ->assertSuccessful();
 });
+
+/* ---------------- Demo verileri ---------------- */
+
+it('demo verileri yalnızca demo modunda yüklenir', function () {
+    config(['app.demo_mode' => false]);
+
+    expect(fn () => $this->seed(DemoDataSeeder::class))->toThrow(RuntimeException::class)
+        ->and(TestResult::withTrashed()->count())->toBe(0);
+});
+
+it('demo verileri maskeli loglarla yüklenir ve tekrar çalıştırınca çoğalmaz', function () {
+    config(['app.demo_mode' => true]);
+    setSeedPasswords('en-büyük-kartal', 'kartal-gol-gol-gol');
+
+    $this->seed(DemoDataSeeder::class);
+    $this->seed(DemoDataSeeder::class);
+
+    expect(User::count())->toBe(2)
+        ->and(TestResult::count())->toBe(6)
+        ->and(TestResult::onlyTrashed()->count())->toBe(1)
+        ->and(SystemLog::count())->toBe(8)
+        ->and(SystemLog::pluck('description')->implode(' '))->not->toContain('Ayşe')
+        ->and(SystemLog::where('description', 'like', '%(A*** Y***)%')->count())->toBe(1);
+
+    $this->postJson('/api/sonuc/BARKOD-2026-001', ['identity_last_four' => '8951'])
+        ->assertOk()
+        ->assertJsonPath('patient_name', 'A*** Y***');
+});
+
+afterEach(fn () => setSeedPasswords(null, null));

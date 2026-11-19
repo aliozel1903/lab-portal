@@ -30,13 +30,17 @@ Sorgulama ekranı, personel girişi ve yönetim paneli tek bir sayfada
 ## Ekran Görüntüleri
 
 **Hasta sorgulama** — Barkod ve T.C. Kimlik Numarasının son 4 hanesiyle
-sonuç sorgulanır. Üstteki şerit, demo sistemindeki verilerin kurgusal
-olduğunu belirtir.
+sonuç sorgulanır. Hasta adı maskeli gösterilir (`A*** Y***`); başkasının
+barkodunu tahmin eden biri tam ada ulaşamaz. Üstteki şerit, demo
+sistemindeki verilerin kurgusal olduğunu belirtir.
 
 ![Hasta sorgulama ekranı](docs/screenshots/01-hasta-sorgulama.png)
 
 **Yönetim paneli** — İstatistikler, arama, sayfalama ve kayıt işlemleri.
-Silme, çöp kutusu ve sistem logları yalnızca yönetici rolünde görünür.
+Hasta adları varsayılan olarak maskelidir; göz düğmesi tam adı yalnızca o
+satırda açar ve her açılış loglanır. Tam ad sayfaya baştan gömülmez, yetki
+kontrolü yapan bir uç noktadan tek tek istenir. Silme, çöp kutusu ve sistem
+logları yalnızca yönetici rolüne açıktır.
 
 ![Yönetim paneli](docs/screenshots/02-yonetim-paneli.png)
 
@@ -50,8 +54,9 @@ Silme, çöp kutusu ve sistem logları yalnızca yönetici rolünde görünür.
     </td>
     <td width="50%" valign="top">
       <b>Sistem işlem logları</b><br>
-      Ekleme, güncelleme, silme ve geri yükleme işlemleri, işlemi yapan
-      kullanıcıyla birlikte kaydedilir.<br><br>
+      Ekleme, güncelleme, silme, geri yükleme, ad görüntüleme ve yazdırma
+      işlemleri, işlemi yapan kullanıcıyla birlikte kaydedilir. Loglarda
+      hasta adı yalnızca maskeli yer alır.<br><br>
       <img src="docs/screenshots/04-sistem-loglari.png" alt="Sistem işlem logları">
     </td>
   </tr>
@@ -160,6 +165,21 @@ php artisan serve
 ```
 
 Uygulama `http://localhost:8000` adresinde çalışır.
+
+Demo modunda (`DEMO_MODE=true`) kurgusal hasta ve tahlil verilerini yüklemek
+için:
+
+```bash
+php artisan db:seed --class=DemoDataSeeder
+```
+
+Eski sistem loglarında açık yazılmış hasta adlarını maskelemek için (önce
+önizleme gösterir, `--uygula` olmadan veritabanına yazmaz):
+
+```bash
+php artisan loglar:ad-maskele
+php artisan loglar:ad-maskele --uygula
+```
 
 ## Testler
 
