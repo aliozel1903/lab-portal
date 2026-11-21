@@ -102,15 +102,19 @@ tarafından "Erişim Logları" ekranında görüntülenebilir:
 
 | Olay | Kaydedilen |
 |---|---|
-| Hasta sorgusu | Sonuç (başarılı / başarısız / kilitli), sorgulanan barkod, IP, tarayıcı bilgisi, zaman |
-| Personel girişi | Sonuç, hesap (deneme gerçek bir hesaba yapıldıysa), IP, zaman |
+| Hasta sorgusu | Sonuç (başarılı / başarısız / kilitli), sorgulanan barkod, zaman. **Ziyaretçinin IP adresi ve tarayıcı bilgisi kaydedilmez.** |
+| Personel girişi | Sonuç, hesap, IP, zaman. Var olmayan bir hesaba yapılan denemede IP kaydedilmez. |
 | Kayıt görüntüleme | Tam T.C. Kimlik Numarasını gören personel, kaydın barkodu, IP, zaman |
 
 KVKK'nın veri minimizasyonu ilkesi gereği **T.C. Kimlik Numarası ve son 4
 hanesi hiçbir koşulda kaydedilmez.** Başarısız girişlerde yazılan e-posta
 adresi de saklanmaz. Kayıtlar **1 yıl** sonra otomatik olarak silinir
-(`php artisan model:prune` ile elle de temizlenebilir). Sorgu ekranında
-ziyaretçi, hangi bilgilerinin ne süreyle tutulduğu konusunda bilgilendirilir.
+(`php artisan model:prune` ile elle de temizlenebilir). IP adresi yalnızca
+personel hesabıyla ilgili kayıtlarda tutulur; bu kuraldan önce yazılmış
+ziyaretçi kayıtlarındaki IP'ler `php artisan erisim-loglari:ip-temizle`
+komutuyla silinebilir (önce önizleme gösterir, `--uygula` olmadan yazmaz).
+Sorgu ekranında ziyaretçi, hangi bilgilerinin ne süreyle tutulduğu konusunda
+bilgilendirilir.
 
 ### Uygulama güvenliği
 

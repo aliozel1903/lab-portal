@@ -26,7 +26,7 @@ function maskUser(string $role = 'laborant'): User
     ]);
 }
 
-function maskResult(string $name = 'Ayşe Yılmaz', string $barcode = 'LP-TEST0001', string $identity = '10000000146'): TestResult
+function maskResult(string $name = 'Ayşe Yılmaz', string $barcode = 'LP-TEST0001', string $identity = '10000000147'): TestResult
 {
     $patient = Patient::create(['identity_number' => $identity, 'full_name' => $name]);
 
@@ -51,13 +51,13 @@ it('liste yalnızca maskeli adı içerir, tam ad ve kimlik numarası yanıtta yo
     expect($response->json('data.0.patient'))->not->toHaveKey('full_name')
         ->and($response->content())->not->toContain('Ayşe')
         ->and($response->content())->not->toContain('Yılmaz')
-        ->and($response->content())->not->toContain('10000000146');
+        ->and($response->content())->not->toContain('10000000147');
 });
 
 it('tam adla arama sunucuda çalışır ama sonuç maskeli döner', function () {
     Sanctum::actingAs(maskUser());
-    maskResult('Ayşe Yılmaz', 'LP-TEST0001', '10000000146');
-    maskResult('Mehmet Demir', 'LP-TEST0002', '10000000214');
+    maskResult('Ayşe Yılmaz', 'LP-TEST0001', '10000000147');
+    maskResult('Mehmet Demir', 'LP-TEST0002', '10000000215');
 
     $response = $this->getJson('/api/sonuclar?search='.urlencode('ayşe yılmaz'))->assertOk();
 
@@ -159,7 +159,7 @@ it('yazdırma belgesi tam ad ve kimlik numarasını içerir ve Yazdırma olarak 
     $this->getJson('/api/sonuclar/'.$result->id.'/belge')
         ->assertOk()
         ->assertJsonPath('patient.full_name', 'Ayşe Yılmaz')
-        ->assertJsonPath('patient.identity_number', '10000000146');
+        ->assertJsonPath('patient.identity_number', '10000000147');
 
     $log = SystemLog::sole();
 
@@ -185,10 +185,11 @@ it('yazdırma sayfası belge uç noktasını kullanır', function () {
 /* ---------------- Log kayıtları ---------------- */
 
 it('yeni kayıt logunda hasta adı maskeli yazılır', function () {
+    config(['app.demo_mode' => true]);
     Sanctum::actingAs(maskUser());
 
     $barcode = $this->postJson('/api/sonuclar', [
-        'identity_number' => '10000000146',
+        'identity_number' => '10000000147',
         'full_name' => 'hüseyin arslan',
         'test_name' => 'Kan Tahlili',
         'result_details' => 'Detaylar',
@@ -203,9 +204,10 @@ it('yeni kayıt logunda hasta adı maskeli yazılır', function () {
 });
 
 it('sistem logları ekranında hasta adı görünmez', function () {
+    config(['app.demo_mode' => true]);
     Sanctum::actingAs(maskUser());
     $this->postJson('/api/sonuclar', [
-        'identity_number' => '10000000146',
+        'identity_number' => '10000000147',
         'full_name' => 'Fatma Şahin',
         'test_name' => 'Vitamin D',
         'result_details' => 'Normal',

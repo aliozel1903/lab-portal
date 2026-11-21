@@ -34,7 +34,8 @@
 <div class="container bg-white p-5 shadow-sm" style="max-width: 800px;">
     <!-- Kurum Başlığı -->
     <div class="text-center header">
-        <h2 class="fw-bold">ULUDAĞ BİLİŞİM LABORATUVARLARI</h2>
+        {{-- Kurgusal kurum adı; gerçek bir şirketin adı kullanılmaz --}}
+        <h2 class="fw-bold">{{ config('app.demo_mode') ? 'LAB PORTAL DEMO LABORATUVARI' : 'LAB PORTAL LABORATUVARI' }}</h2>
         @if (config('app.demo_mode'))
             <h5 class="text-danger fw-bold mb-1">TEST BELGESİ</h5>
             <p class="text-muted small mb-0">Demo sistemi çıktısıdır, resmî geçerliliği yoktur. Tüm veriler kurgusaldır.</p>

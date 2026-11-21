@@ -17,7 +17,7 @@ function makeUser(string $role = 'laborant'): User
     ]);
 }
 
-function makeResult(string $identityNumber = '10000000146', string $barcode = 'BARKOD456'): TestResult
+function makeResult(string $identityNumber = '10000000147', string $barcode = 'BARKOD456'): TestResult
 {
     $patient = Patient::create([
         'identity_number' => $identityNumber,
@@ -42,22 +42,22 @@ it('kimlik son 4 hanesi olmadan sonuç vermez', function () {
 });
 
 it('kimlik son 4 hanesi yanlışsa sonuç vermez', function () {
-    makeResult(identityNumber: '10000000146');
+    makeResult(identityNumber: '10000000147');
 
     $this->postJson('/api/sonuc/BARKOD456', ['identity_last_four' => '9999'])
         ->assertStatus(404);
 });
 
 it('doğru bilgilerle sonucu döner ama kimlik numarasını ve tam adı sızdırmaz', function () {
-    makeResult(identityNumber: '10000000146');
+    makeResult(identityNumber: '10000000147');
 
-    $response = $this->postJson('/api/sonuc/BARKOD456', ['identity_last_four' => '0146'])
+    $response = $this->postJson('/api/sonuc/BARKOD456', ['identity_last_four' => '0147'])
         ->assertStatus(200)
         ->assertJsonPath('patient_name', 'A*** Y***')
         ->assertJsonPath('test_name', 'Kan Tahlili');
 
     expect($response->json())->not->toHaveKey('patient')
-        ->and($response->content())->not->toContain('10000000146')
+        ->and($response->content())->not->toContain('10000000147')
         ->and($response->content())->not->toContain('Ayşe')
         ->and($response->content())->not->toContain('Yılmaz');
 });
@@ -78,6 +78,9 @@ it('geçersiz kimlik numarasıyla kayıt eklenemez', function (string $identity)
     expect(TestResult::count())->toBe(0);
 })->with(['ahmet', '12345678901', '123', '0123456789']);
 
+// Gerçek kuralın doğru çalıştığını ölçmek için gerçek formatta geçerli bir
+// numara gerekir. 10000000146 yaygın olarak kullanılan bir test numarasıdır;
+// başka hiçbir testte gerçek formatta numara kullanılmaz.
 it('geçerli kimlik numarasıyla kayıt eklenir ve barkod sistem tarafından üretilir', function () {
     Sanctum::actingAs(makeUser());
 
@@ -96,10 +99,11 @@ it('geçerli kimlik numarasıyla kayıt eklenir ve barkod sistem tarafından ür
 });
 
 it('hasta adında HTML etiketi kabul etmez', function () {
+    config(['app.demo_mode' => true]);
     Sanctum::actingAs(makeUser());
 
     $this->postJson('/api/sonuclar', [
-        'identity_number' => '10000000146',
+        'identity_number' => '10000000147',
         'full_name' => '<img src=x onerror=alert(1)>',
         'barcode_number' => 'BARKOD999',
         'test_name' => 'Kan Tahlili',
@@ -108,9 +112,10 @@ it('hasta adında HTML etiketi kabul etmez', function () {
 });
 
 it('kullanıcının gönderdiği barkod yok sayılır, her kayda farklı barkod üretilir', function () {
+    config(['app.demo_mode' => true]);
     Sanctum::actingAs(makeUser());
 
-    foreach (['10000000146', '10000000146'] as $identity) {
+    foreach (['10000000147', '10000000147'] as $identity) {
         $this->postJson('/api/sonuclar', [
             'identity_number' => $identity,
             'full_name' => 'Mehmet Demir',
@@ -163,7 +168,7 @@ it('yönetici kaydı çöp kutusuna taşıyabilir', function () {
 
 it('hasta adına ve barkoda göre harf duyarsız arama yapar', function () {
     Sanctum::actingAs(makeUser());
-    makeResult(identityNumber: '10000000146', barcode: 'BARKOD456');
+    makeResult(identityNumber: '10000000147', barcode: 'BARKOD456');
 
     expect($this->getJson('/api/sonuclar?search=ayşe')->json('total'))->toBe(1)
         ->and($this->getJson('/api/sonuclar?search=barkod')->json('total'))->toBe(1)

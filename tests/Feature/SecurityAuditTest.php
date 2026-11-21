@@ -29,7 +29,7 @@ function auditUser(string $role = 'laborant'): User
     ]);
 }
 
-function auditResult(string $identity = '10000000146', string $barcode = 'BARKOD-2026-001'): TestResult
+function auditResult(string $identity = '10000000147', string $barcode = 'BARKOD-2026-001'): TestResult
 {
     $patient = Patient::create(['identity_number' => $identity, 'full_name' => 'Ayşe Yılmaz']);
 
@@ -49,26 +49,26 @@ function lookup(string $barcode, string $lastFour)
 /* ---------------- 3. Barkod başına kilit ---------------- */
 
 it('aynı barkoda 5 hatalı denemeden sonra doğru bilgiyle bile sonuç vermez', function () {
-    auditResult(identity: '10000000146');
+    auditResult(identity: '10000000147');
 
     foreach (range(1, 5) as $i) {
         lookup('BARKOD-2026-001', '9999')->assertStatus(404);
     }
 
-    lookup('BARKOD-2026-001', '0146')
+    lookup('BARKOD-2026-001', '0147')
         ->assertStatus(429)
         ->assertJsonPath('locked', true);
 });
 
 it('barkod kilidi diğer barkodları etkilemez', function () {
-    auditResult(identity: '10000000146', barcode: 'BARKOD-2026-001');
-    auditResult(identity: '10000000214', barcode: 'BARKOD-2026-002');
+    auditResult(identity: '10000000147', barcode: 'BARKOD-2026-001');
+    auditResult(identity: '10000000215', barcode: 'BARKOD-2026-002');
 
     foreach (range(1, 5) as $i) {
         lookup('BARKOD-2026-001', '9999');
     }
 
-    lookup('BARKOD-2026-002', '0214')->assertStatus(200);
+    lookup('BARKOD-2026-002', '0215')->assertStatus(200);
 });
 
 it('kilit var olmayan barkodda da aynı davranır, barkodun varlığını ele vermez', function () {
@@ -91,7 +91,7 @@ it('kilit var olmayan barkodda da aynı davranır, barkodun varlığını ele ve
 });
 
 it('kilit bir saat sonra kalkar', function () {
-    auditResult(identity: '10000000146');
+    auditResult(identity: '10000000147');
 
     foreach (range(1, 5) as $i) {
         lookup('BARKOD-2026-001', '9999');
@@ -99,19 +99,19 @@ it('kilit bir saat sonra kalkar', function () {
 
     $this->travel(61)->minutes();
 
-    lookup('BARKOD-2026-001', '0146')->assertStatus(200);
+    lookup('BARKOD-2026-001', '0147')->assertStatus(200);
 });
 
 /* ---------------- 2. Erişim logları ---------------- */
 
 it('başarılı, başarısız ve kilitli hasta sorgularını kaydeder', function () {
-    auditResult(identity: '10000000146');
+    auditResult(identity: '10000000147');
 
-    lookup('BARKOD-2026-001', '0146');
+    lookup('BARKOD-2026-001', '0147');
     foreach (range(1, 5) as $i) {
         lookup('BARKOD-2026-001', '9999');
     }
-    lookup('BARKOD-2026-001', '0146');
+    lookup('BARKOD-2026-001', '0147');
 
     $outcomes = AccessLog::where('event', 'hasta_sorgu')->orderBy('id')->pluck('outcome')->all();
 
@@ -121,15 +121,15 @@ it('başarılı, başarısız ve kilitli hasta sorgularını kaydeder', function
 });
 
 it('erişim loguna kimlik numarası veya son 4 hane yazılmaz', function () {
-    auditResult(identity: '10000000146');
+    auditResult(identity: '10000000147');
 
-    lookup('BARKOD-2026-001', '0146');
+    lookup('BARKOD-2026-001', '0147');
     lookup('BARKOD-2026-001', '5555');
 
     $everything = json_encode(DB::table('access_logs')->get());
 
-    expect($everything)->not->toContain('10000000146')
-        ->and($everything)->not->toContain('0146')
+    expect($everything)->not->toContain('10000000147')
+        ->and($everything)->not->toContain('0147')
         ->and($everything)->not->toContain('5555');
 });
 
@@ -240,12 +240,60 @@ it('seeder güçlü şifrelerle kullanıcıları oluşturur', function () {
 /* ---------------- 5. Ziyaretçi IP'si ---------------- */
 
 it('Vercel dışında X-Forwarded-For başlığına güvenmez, sahte IP kaydedilmez', function () {
-    auditResult();
+    $user = auditUser();
 
     $this->withHeader('X-Forwarded-For', '203.0.113.99')
-        ->postJson('/api/sonuc/BARKOD-2026-001', ['identity_last_four' => '9999']);
+        ->postJson('/api/login', ['email' => $user->email, 'password' => 'sifre-1234'])
+        ->assertOk();
 
-    expect(AccessLog::first()->ip_address)->not->toBe('203.0.113.99');
+    expect(AccessLog::sole()->ip_address)->not->toBeNull()->not->toBe('203.0.113.99');
+});
+
+it('ziyaretçinin hasta sorgusunda IP ve tarayıcı bilgisi kaydedilmez', function () {
+    auditResult();
+
+    $this->withHeader('User-Agent', 'Ziyaretci-Tarayicisi/1.0')
+        ->postJson('/api/sonuc/BARKOD-2026-001', ['identity_last_four' => '0147'])->assertOk();
+    $this->postJson('/api/sonuc/BARKOD-2026-001', ['identity_last_four' => '9999'])->assertStatus(404);
+
+    $logs = AccessLog::where('event', 'hasta_sorgu')->get();
+
+    expect($logs)->toHaveCount(2)
+        ->and($logs->pluck('ip_address')->filter())->toBeEmpty()
+        ->and($logs->pluck('user_agent')->filter())->toBeEmpty()
+        ->and($logs->pluck('subject')->unique()->all())->toBe(['BARKOD-2026-001']);
+});
+
+it('var olmayan hesaba giriş denemesinde IP kaydedilmez, personel hesabına yapılanda kaydedilir', function () {
+    $user = auditUser();
+
+    $this->postJson('/api/login', ['email' => 'hic-yok@baska.test', 'password' => 'yanlis'])->assertStatus(401);
+    $this->postJson('/api/login', ['email' => $user->email, 'password' => 'yanlis'])->assertStatus(401);
+
+    $logs = AccessLog::orderBy('id')->get();
+
+    expect($logs[0]->user_id)->toBeNull()
+        ->and($logs[0]->ip_address)->toBeNull()
+        ->and($logs[1]->user_id)->toBe($user->id)
+        ->and($logs[1]->ip_address)->not->toBeNull();
+});
+
+it('ip temizleme komutu önizleme yapar, --uygula ile yalnızca ziyaretçi kayıtlarını temizler', function () {
+    $user = auditUser();
+    $visitor = AccessLog::create(['event' => 'hasta_sorgu', 'outcome' => 'basarisiz', 'subject' => 'BARKOD-2026-001', 'ip_address' => '198.51.100.7', 'user_agent' => 'Eski/1.0']);
+    $staff = AccessLog::create(['event' => 'giris', 'outcome' => 'basarili', 'user_id' => $user->id, 'ip_address' => '198.51.100.8', 'user_agent' => 'Personel/1.0']);
+
+    $this->artisan('erisim-loglari:ip-temizle')->expectsOutputToContain('yalnızca önizlemedir')->assertSuccessful();
+    expect($visitor->fresh()->ip_address)->toBe('198.51.100.7');
+
+    $this->artisan('erisim-loglari:ip-temizle', ['--uygula' => true])->assertSuccessful();
+
+    expect($visitor->fresh()->ip_address)->toBeNull()
+        ->and($visitor->fresh()->user_agent)->toBeNull()
+        ->and($visitor->fresh()->subject)->toBe('BARKOD-2026-001')
+        ->and($staff->fresh()->ip_address)->toBe('198.51.100.8');
+
+    $this->artisan('erisim-loglari:ip-temizle')->expectsOutputToContain('silinecek ziyaretçi kaydı yok')->assertSuccessful();
 });
 
 /* ---------------- 6. Ayrı istek sayaçları ---------------- */
@@ -264,12 +312,12 @@ it('hasta sorgusu sınırı dolsa da personel girişi etkilenmez', function () {
 
 it('giriş sınırı dolsa da hasta sorgusu etkilenmez', function () {
     $user = auditUser();
-    auditResult(identity: '10000000146');
+    auditResult(identity: '10000000147');
 
     foreach (range(1, 5) as $i) {
         $this->postJson('/api/login', ['email' => $user->email, 'password' => 'yanlis']);
     }
     $this->postJson('/api/login', ['email' => $user->email, 'password' => 'sifre-1234'])->assertStatus(429);
 
-    lookup('BARKOD-2026-001', '0146')->assertOk();
+    lookup('BARKOD-2026-001', '0147')->assertOk();
 });

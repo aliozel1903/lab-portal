@@ -41,13 +41,20 @@ class AccessLog extends Model
 
     public static function record(Request $request, string $event, string $outcome, ?int $userId = null, ?string $subject = null): void
     {
+        // Veri minimizasyonu: IP ve tarayıcı bilgisi yalnızca işlem bir
+        // personel hesabıyla ilgiliyse (personel girişi, hesaba yapılan
+        // hatalı deneme, kayıt görüntüleme) tutulur. Ziyaretçilerin hasta
+        // sorgularında ve var olmayan hesaplara giriş denemelerinde IP
+        // kaydedilmez; yalnızca olay, sonuç, barkod ve zaman kalır.
+        $tracksDevice = $userId !== null;
+
         static::create([
             'event' => $event,
             'outcome' => $outcome,
             'user_id' => $userId,
             'subject' => $subject !== null ? mb_substr($subject, 0, 100) : null,
-            'ip_address' => $request->ip(),
-            'user_agent' => mb_substr((string) $request->userAgent(), 0, 255) ?: null,
+            'ip_address' => $tracksDevice ? $request->ip() : null,
+            'user_agent' => $tracksDevice ? (mb_substr((string) $request->userAgent(), 0, 255) ?: null) : null,
         ]);
 
         if (random_int(1, self::PRUNE_LOTTERY) === 1) {

@@ -62,8 +62,8 @@
                             </div>
                             <button type="submit" class="btn btn-primary w-100 fw-bold" id="searchBtn">Sonucumu Bul</button>
                             <p class="form-text field-hint text-center mt-3 mb-0">
-                                Güvenlik amacıyla sorgu zamanı, sorgulanan barkod ve IP adresiniz 1 yıl süreyle kaydedilir.
-                                T.C. Kimlik Numaranız kaydedilmez.
+                                Güvenlik amacıyla sorgu zamanı ve sorgulanan barkod 1 yıl süreyle kaydedilir.
+                                IP adresiniz ve T.C. Kimlik Numaranız kaydedilmez.
                             </p>
                         </form>
 
