@@ -219,13 +219,21 @@ Vercel sunucusuz (serverless) çalıştığı için iki kısıt vardır:
 1. Ücretsiz bir PostgreSQL veritabanı oluşturun (ör. Neon). Bağlantı bilgilerini alın.
 2. Depoyu GitHub'a gönderin ve Vercel'de "Import Project" ile bağlayın.
 3. Vercel proje ayarlarında aşağıdaki ortam değişkenlerini tanımlayın.
-4. Veritabanı tablolarını yerelden oluşturun (Vercel build sırasında migration
-   çalıştırılmaz — birden fazla örnek aynı anda başlayabilir):
+4. Veritabanı tablolarını ve başlangıç hesaplarını yerelden oluşturun (Vercel
+   build sırasında migration çalıştırılmaz — birden fazla örnek aynı anda
+   başlayabilir). Bunun için git'e girmeyen geçici bir env dosyasına
+   (ör. `.env.uzak`) veritabanı bilgilerini, `DEMO_MODE=true` ve `SEED_*`
+   değerlerini yazın, komutları `APP_ENV=uzak` ile çalıştırın ve iş bitince
+   dosyayı silin:
 
 ```bash
-php artisan migrate --force
-php artisan db:seed --force
+APP_ENV=uzak php artisan migrate --force
+APP_ENV=uzak php artisan db:seed --class=DemoDataSeeder --force
 ```
+
+   `DemoDataSeeder` önce yönetici ve laborant hesaplarını, sonra kurgusal
+   verileri oluşturur. Demo verisi istenmiyorsa yalnızca
+   `php artisan db:seed --force` çalıştırılır.
 
 ### Vercel ortam değişkenleri
 
@@ -242,8 +250,10 @@ php artisan db:seed --force
 | `QUEUE_CONNECTION` | `sync` |
 | `LOG_CHANNEL` | `stderr` |
 | `DEMO_MODE` | `true` (herkese açık demo için) |
-| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Yönetici hesabı |
-| `SEED_LAB_EMAIL` / `SEED_LAB_PASSWORD` | Laborant hesabı |
+
+`SEED_*` değişkenleri Vercel'e **eklenmez**. Yalnızca hesapları oluşturan
+seeder'ı okur ve seeder 4. adımdaki gibi yerelden çalıştırılır; hesap
+şifrelerinin barındırma ortamında durmasına gerek yoktur.
 
 `APP_DEBUG` değerinin `false` kaldığından emin olun; aksi halde hata sayfaları
 veritabanı bilgilerini açığa çıkarır.
