@@ -6,7 +6,7 @@
  *  2. Özel nitelikli verilere erişimin kayıt altına alınmaması
  *  3. Tahmin edilebilir barkodlara karşı deneme yanılma
  *  4. Süresi dolmayan giriş token'ları
- *  5. Vercel aracısı yüzünden ziyaretçi IP'sinin yanlış okunması
+ *  5. IP adresi ve tarayıcı bilgisinin saklanmaması
  *  6. Hasta sorgusu ile personel girişinin aynı istek sayacını paylaşması
  */
 
@@ -17,6 +17,7 @@ use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 
 function auditUser(string $role = 'laborant'): User
@@ -237,63 +238,40 @@ it('seeder güçlü şifrelerle kullanıcıları oluşturur', function () {
         ->and(User::where('role', 'laborant')->count())->toBe(1);
 });
 
-/* ---------------- 5. Ziyaretçi IP'si ---------------- */
+/* ---------------- 5. IP adresi saklanmaz ---------------- */
 
-it('Vercel dışında X-Forwarded-For başlığına güvenmez, sahte IP kaydedilmez', function () {
-    $user = auditUser();
-
-    $this->withHeader('X-Forwarded-For', '203.0.113.99')
-        ->postJson('/api/login', ['email' => $user->email, 'password' => 'sifre-1234'])
-        ->assertOk();
-
-    expect(AccessLog::sole()->ip_address)->not->toBeNull()->not->toBe('203.0.113.99');
+it('erişim loglarında IP ve tarayıcı bilgisi sütunu yoktur', function () {
+    expect(Schema::hasColumn('access_logs', 'ip_address'))->toBeFalse()
+        ->and(Schema::hasColumn('access_logs', 'user_agent'))->toBeFalse();
 });
 
-it('ziyaretçinin hasta sorgusunda IP ve tarayıcı bilgisi kaydedilmez', function () {
-    auditResult();
+it('sorgu, giriş ve kayıt görüntüleme loglarına IP ya da tarayıcı bilgisi yazılmaz', function () {
+    $user = auditUser();
+    $result = auditResult();
 
     $this->withHeader('User-Agent', 'Ziyaretci-Tarayicisi/1.0')
         ->postJson('/api/sonuc/BARKOD-2026-001', ['identity_last_four' => '0147'])->assertOk();
-    $this->postJson('/api/sonuc/BARKOD-2026-001', ['identity_last_four' => '9999'])->assertStatus(404);
-
-    $logs = AccessLog::where('event', 'hasta_sorgu')->get();
-
-    expect($logs)->toHaveCount(2)
-        ->and($logs->pluck('ip_address')->filter())->toBeEmpty()
-        ->and($logs->pluck('user_agent')->filter())->toBeEmpty()
-        ->and($logs->pluck('subject')->unique()->all())->toBe(['BARKOD-2026-001']);
-});
-
-it('var olmayan hesaba giriş denemesinde IP kaydedilmez, personel hesabına yapılanda kaydedilir', function () {
-    $user = auditUser();
-
     $this->postJson('/api/login', ['email' => 'hic-yok@baska.test', 'password' => 'yanlis'])->assertStatus(401);
-    $this->postJson('/api/login', ['email' => $user->email, 'password' => 'yanlis'])->assertStatus(401);
+    $this->postJson('/api/login', ['email' => $user->email, 'password' => 'sifre-1234'])->assertOk();
+    Sanctum::actingAs($user);
+    $this->getJson('/api/sonuclar/'.$result->id)->assertOk();
 
-    $logs = AccessLog::orderBy('id')->get();
+    $everything = json_encode(DB::table('access_logs')->get());
 
-    expect($logs[0]->user_id)->toBeNull()
-        ->and($logs[0]->ip_address)->toBeNull()
-        ->and($logs[1]->user_id)->toBe($user->id)
-        ->and($logs[1]->ip_address)->not->toBeNull();
+    expect(AccessLog::count())->toBe(4)
+        ->and($everything)->not->toContain('127.0.0.1')
+        ->and($everything)->not->toContain('Ziyaretci-Tarayicisi');
 });
 
-it('ip temizleme komutu önizleme yapar, --uygula ile yalnızca ziyaretçi kayıtlarını temizler', function () {
-    $user = auditUser();
-    $visitor = AccessLog::create(['event' => 'hasta_sorgu', 'outcome' => 'basarisiz', 'subject' => 'BARKOD-2026-001', 'ip_address' => '198.51.100.7', 'user_agent' => 'Eski/1.0']);
-    $staff = AccessLog::create(['event' => 'giris', 'outcome' => 'basarili', 'user_id' => $user->id, 'ip_address' => '198.51.100.8', 'user_agent' => 'Personel/1.0']);
+it('ziyaretçi için oturum açılmaz, oturum tablosuna IP yazılmaz', function () {
+    config(['session.driver' => 'database']);
 
-    $this->artisan('erisim-loglari:ip-temizle')->expectsOutputToContain('yalnızca önizlemedir')->assertSuccessful();
-    expect($visitor->fresh()->ip_address)->toBe('198.51.100.7');
+    $response = $this->get('/')->assertOk();
+    $this->get('/yazdir/1')->assertOk();
 
-    $this->artisan('erisim-loglari:ip-temizle', ['--uygula' => true])->assertSuccessful();
-
-    expect($visitor->fresh()->ip_address)->toBeNull()
-        ->and($visitor->fresh()->user_agent)->toBeNull()
-        ->and($visitor->fresh()->subject)->toBe('BARKOD-2026-001')
-        ->and($staff->fresh()->ip_address)->toBe('198.51.100.8');
-
-    $this->artisan('erisim-loglari:ip-temizle')->expectsOutputToContain('silinecek ziyaretçi kaydı yok')->assertSuccessful();
+    expect(DB::table('sessions')->count())->toBe(0)
+        ->and(collect($response->headers->getCookies())->map->getName()->all())
+        ->not->toContain(config('session.cookie'));
 });
 
 /* ---------------- 6. Ayrı istek sayaçları ---------------- */

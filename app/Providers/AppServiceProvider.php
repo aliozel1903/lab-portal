@@ -26,12 +26,23 @@ class AppServiceProvider extends ServiceProvider
         // tutar; hasta sorgusu ile personel girişi aynı sayacı paylaşır ve
         // birkaç hatalı sorgu, aynı ağdaki personelin girişini kilitler.
         // Her uç noktaya kendi sayacını veriyoruz.
-        RateLimiter::for('giris', fn (Request $request) => Limit::perMinute(5)->by('giris|'.$request->ip()));
+        RateLimiter::for('giris', fn (Request $request) => Limit::perMinute(5)->by('giris|'.self::clientKey($request)));
 
-        RateLimiter::for('hasta-sorgu', fn (Request $request) => Limit::perMinute(10)->by('hasta-sorgu|'.$request->ip()));
+        RateLimiter::for('hasta-sorgu', fn (Request $request) => Limit::perMinute(10)->by('hasta-sorgu|'.self::clientKey($request)));
 
         // Tam ad açma tek tek yapılır; toplu ad çekmeyi zorlaştırmak için
         // kullanıcı başına dakikada 30 istekle sınırlıyoruz.
-        RateLimiter::for('ad-goster', fn (Request $request) => Limit::perMinute(30)->by('ad-goster|'.($request->user()?->id ?: $request->ip())));
+        RateLimiter::for('ad-goster', fn (Request $request) => Limit::perMinute(30)->by('ad-goster|'.($request->user()?->id ?: self::clientKey($request))));
+    }
+
+    /**
+     * İstek sınırı sayacı için ziyaretçiyi IP'siyle ayırt etmek gerekir, ama
+     * IP önbellek tablosuna açık ya da kolayca geri çözülebilir biçimde
+     * yazılmasın diye uygulama anahtarıyla HMAC'leniyoruz. Anahtar olmadan
+     * sayaçtan IP adresine geri gidilemez; sayaç da bir dakikada sıfırlanır.
+     */
+    private static function clientKey(Request $request): string
+    {
+        return hash_hmac('sha256', (string) $request->ip(), (string) config('app.key'));
     }
 }

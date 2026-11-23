@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Prunable;
 use Illuminate\Http\Request;
 
 /**
- * Özel nitelikli verilere erişim kaydı (kim, ne zaman, nereden, neye).
+ * Özel nitelikli verilere erişim kaydı (kim, ne zaman, neye).
+ *
+ * IP adresi ve tarayıcı bilgisi hiçbir kayıtta tutulmaz (veri minimizasyonu).
  *
  * Kayıtlar 1 yıl saklanır. Sunucusuz ortamda zamanlanmış görev çalışmadığı
  * için eski kayıtlar, yeni kayıt yazılırken küçük bir olasılıkla temizlenir;
@@ -37,24 +39,15 @@ class AccessLog extends Model
 
     public const UPDATED_AT = null;
 
-    protected $fillable = ['event', 'outcome', 'user_id', 'subject', 'ip_address', 'user_agent'];
+    protected $fillable = ['event', 'outcome', 'user_id', 'subject'];
 
     public static function record(Request $request, string $event, string $outcome, ?int $userId = null, ?string $subject = null): void
     {
-        // Veri minimizasyonu: IP ve tarayıcı bilgisi yalnızca işlem bir
-        // personel hesabıyla ilgiliyse (personel girişi, hesaba yapılan
-        // hatalı deneme, kayıt görüntüleme) tutulur. Ziyaretçilerin hasta
-        // sorgularında ve var olmayan hesaplara giriş denemelerinde IP
-        // kaydedilmez; yalnızca olay, sonuç, barkod ve zaman kalır.
-        $tracksDevice = $userId !== null;
-
         static::create([
             'event' => $event,
             'outcome' => $outcome,
             'user_id' => $userId,
             'subject' => $subject !== null ? mb_substr($subject, 0, 100) : null,
-            'ip_address' => $tracksDevice ? $request->ip() : null,
-            'user_agent' => $tracksDevice ? (mb_substr((string) $request->userAgent(), 0, 255) ?: null) : null,
         ]);
 
         if (random_int(1, self::PRUNE_LOTTERY) === 1) {

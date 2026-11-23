@@ -5,7 +5,10 @@ use App\Http\Middleware\EnsureUserIsStaff;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,6 +18,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Uygulama PHP oturumu kullanmaz: giriş, API'de token ile yapılır ve
+        // web rotaları yalnızca sayfa döndürür (form gönderen web rotası
+        // yoktur). Oturum başlatılırsa Laravel her ziyaretçi için veritabanına
+        // IP ve tarayıcı bilgisiyle bir satır yazar; bunu önlemek için oturum,
+        // oturuma bağlı hata paylaşımı ve CSRF ara katmanlarını kaldırıyoruz.
+        $middleware->web(remove: [
+            StartSession::class,
+            ShareErrorsFromSession::class,
+            PreventRequestForgery::class,
+        ]);
+
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
             'staff' => EnsureUserIsStaff::class,

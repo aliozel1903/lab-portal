@@ -8,7 +8,7 @@ Sağlık verisi KVKK kapsamında özel nitelikli kişisel veri olduğu için pro
 veri güvenliği öncelikli tasarlanmıştır. Ayrıntılar
 [Güvenlik ve KVKK](#güvenlik-ve-kvkk) bölümündedir.
 
-> **Canlı demo:** https://lab-portal-tau.vercel.app
+> **Canlı demo:** https://lab.aliozel.dev
 > Demo sistemindeki tüm hasta ve tahlil verileri kurgusaldır.
 > Örnek sorgu: barkod `BARKOD-2026-001`, T.C. son 4 hane `8951`.
 
@@ -102,17 +102,22 @@ tarafından "Erişim Logları" ekranında görüntülenebilir:
 
 | Olay | Kaydedilen |
 |---|---|
-| Hasta sorgusu | Sonuç (başarılı / başarısız / kilitli), sorgulanan barkod, zaman. **Ziyaretçinin IP adresi ve tarayıcı bilgisi kaydedilmez.** |
-| Personel girişi | Sonuç, hesap, IP, zaman. Var olmayan bir hesaba yapılan denemede IP kaydedilmez. |
-| Kayıt görüntüleme | Tam T.C. Kimlik Numarasını gören personel, kaydın barkodu, IP, zaman |
+| Hasta sorgusu | Sonuç (başarılı / başarısız / kilitli), sorgulanan barkod, zaman |
+| Personel girişi | Sonuç, hesap (deneme gerçek bir hesaba yapıldıysa), zaman |
+| Kayıt görüntüleme | Tam T.C. Kimlik Numarasını gören personel, kaydın barkodu, zaman |
 
 KVKK'nın veri minimizasyonu ilkesi gereği **T.C. Kimlik Numarası ve son 4
 hanesi hiçbir koşulda kaydedilmez.** Başarısız girişlerde yazılan e-posta
 adresi de saklanmaz. Kayıtlar **1 yıl** sonra otomatik olarak silinir
-(`php artisan model:prune` ile elle de temizlenebilir). IP adresi yalnızca
-personel hesabıyla ilgili kayıtlarda tutulur; bu kuraldan önce yazılmış
-ziyaretçi kayıtlarındaki IP'ler `php artisan erisim-loglari:ip-temizle`
-komutuyla silinebilir (önce önizleme gösterir, `--uygula` olmadan yazmaz).
+(`php artisan model:prune` ile elle de temizlenebilir).
+
+**IP adresi ve tarayıcı bilgisi hiçbir yerde saklanmaz.** Erişim
+loglarında bu alanlar yoktur. Uygulama PHP oturumu da kullanmaz, bu yüzden
+Laravel'in ziyaretçi başına IP yazan oturum tablosu boş kalır. İstek
+sınırlama sayacı ziyaretçileri ayırt etmek için IP'yi kullanır, ama önbelleğe
+yalnızca uygulama anahtarıyla HMAC'lenmiş hâli yazılır ve sayaç bir dakikada
+sıfırlanır. (Barındırma sağlayıcılarının kendi altyapı logları uygulamanın
+dışındadır.)
 Sorgu ekranında ziyaretçi, hangi bilgilerinin ne süreyle tutulduğu konusunda
 bilgilendirilir.
 

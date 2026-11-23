@@ -303,7 +303,7 @@
       <div class="modal-body p-0 table-responsive">
         <table class="table table-striped table-hover mb-0 text-center align-middle" style="font-size: .9rem;">
             <thead class="table-dark">
-                <tr><th>Tarih / Saat</th><th>Olay</th><th>Sonuç</th><th>Kim</th><th>Barkod</th><th>IP Adresi</th></tr>
+                <tr><th>Tarih / Saat</th><th>Olay</th><th>Sonuç</th><th>Kim</th><th>Barkod</th></tr>
             </thead>
             <tbody id="accessLogsTableBody"></tbody>
         </table>
@@ -938,7 +938,7 @@ $(function () {
                 var tbody = $('#accessLogsTableBody').empty();
 
                 if (response.length === 0) {
-                    tbody.append('<tr><td colspan="6" class="text-muted p-3">Henüz kaydedilmiş bir erişim yok.</td></tr>');
+                    tbody.append('<tr><td colspan="5" class="text-muted p-3">Henüz kaydedilmiş bir erişim yok.</td></tr>');
                 } else {
                     response.forEach(function (log) {
                         var outcome = ACCESS_OUTCOMES[log.outcome] || [log.outcome, 'bg-secondary'];
@@ -952,7 +952,6 @@ $(function () {
                                 '<td><span class="badge ' + outcome[1] + '">' + esc(outcome[0]) + '</span></td>' +
                                 '<td class="fw-bold">' + esc(who) + '</td>' +
                                 '<td>' + (log.subject ? '<span class="badge bg-secondary">' + esc(log.subject) + '</span>' : '-') + '</td>' +
-                                '<td class="text-muted">' + esc(log.ip_address || '-') + '</td>' +
                             '</tr>'
                         );
                     });
